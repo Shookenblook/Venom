@@ -1,4 +1,4 @@
--- Venom.lol GUI - Fixed & Complete v1.3
+-- Venom.lol GUI - Fixed & Complete v1.4
 -- LocalScript → StarterGui
 
 local Players          = game:GetService("Players")
@@ -27,6 +27,11 @@ local SUBTEXT     = Color3.fromRGB(130, 120, 150)
 local RED         = Color3.fromRGB(200, 50, 50)
 local TWEEN_FAST  = TweenInfo.new(0.15, Enum.EasingStyle.Quad)
 local CONFIG_FILE = "venom_config.json"
+
+-- ══════════════════════════════════════════
+--  DRAWING API CHECK
+-- ══════════════════════════════════════════
+local hasDrawing = (typeof(Drawing) == "table" or typeof(Drawing) == "userdata") and Drawing.new ~= nil
 
 -- ══════════════════════════════════════════
 --  STATE
@@ -75,10 +80,224 @@ local state = {
 }
 
 local bv, bg
-local espObjects    = {}
-local tracerFrames  = {}
-local stickyTarget  = nil
+local stickyTarget    = nil
 local tracerThickness = 1
+
+-- ══════════════════════════════════════════
+--  ESP DRAWING OBJECTS  (per player)
+-- ══════════════════════════════════════════
+-- Each entry: { box, nameText, healthText, tracer, healthBg }
+local espDrawings = {}
+
+local function newDrawing(objType, props)
+    if not hasDrawing then return nil end
+    local ok, obj = pcall(Drawing.new, objType)
+    if not ok or not obj then return nil end
+    for k, v in props do
+        pcall(function() obj[k] = v end)
+    end
+    return obj
+end
+
+local function hideDrawings(d)
+    if not d then return end
+    if d.box       then d.box.Visible       = false end
+    if d.nameText  then d.nameText.Visible  = false end
+    if d.healthText then d.healthText.Visible = false end
+    if d.healthBg  then d.healthBg.Visible  = false end
+    if d.tracer    then d.tracer.Visible    = false end
+end
+
+local function destroyDrawings(d)
+    if not d then return end
+    pcall(function() if d.box       then d.box:Remove()       end end)
+    pcall(function() if d.nameText  then d.nameText:Remove()  end end)
+    pcall(function() if d.healthText then d.healthText:Remove() end end)
+    pcall(function() if d.healthBg  then d.healthBg:Remove()  end end)
+    pcall(function() if d.tracer    then d.tracer:Remove()    end end)
+end
+
+local function getOrCreateESP(plr)
+    if not hasDrawing then return nil end
+    if espDrawings[plr] then return espDrawings[plr] end
+
+    local d = {}
+
+    -- Box outline
+    d.box = newDrawing("Square", {
+        Visible           = false,
+        Color             = PURPLE,
+        Thickness         = 1,
+        Filled            = false,
+        Transparency      = 1,
+    })
+
+    -- Name label
+    d.nameText = newDrawing("Text", {
+        Visible           = false,
+        Color             = PURPLE,
+        Size              = 13,
+        Center            = true,
+        Outline           = true,
+        OutlineColor      = Color3.new(0,0,0),
+        Transparency      = 1,
+        Font              = Drawing.Fonts and Drawing.Fonts.UI or 0,
+    })
+
+    -- Health bar background (dark red strip)
+    d.healthBg = newDrawing("Square", {
+        Visible           = false,
+        Color             = Color3.fromRGB(30, 0, 0),
+        Thickness         = 1,
+        Filled            = true,
+        Transparency      = 0.4,
+    })
+
+    -- Health text
+    d.healthText = newDrawing("Text", {
+        Visible           = false,
+        Color             = Color3.fromRGB(80, 255, 80),
+        Size              = 11,
+        Center            = true,
+        Outline           = true,
+        OutlineColor      = Color3.new(0,0,0),
+        Transparency      = 1,
+        Font              = Drawing.Fonts and Drawing.Fonts.UI or 0,
+    })
+
+    -- Tracer line
+    d.tracer = newDrawing("Line", {
+        Visible           = false,
+        Color             = PURPLE,
+        Thickness         = tracerThickness,
+        Transparency      = 1,
+    })
+
+    espDrawings[plr] = d
+    return d
+end
+
+local function updateESPForPlayer(plr)
+    local d = getOrCreateESP(plr)
+    if not d then return end
+
+    local char = plr.Character
+    if not char then hideDrawings(d) return end
+
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local head = char:FindFirstChild("Head")
+    local hum  = char:FindFirstChildOfClass("Humanoid")
+    if not hrp or not head or not hum then hideDrawings(d) return end
+
+    local cam = workspace.CurrentCamera
+
+    -- We use Head top and HRP bottom to build the box
+    local topWorld    = head.Position + Vector3.new(0, head.Size.Y / 2 + 0.1, 0)
+    local bottomWorld = hrp.Position  - Vector3.new(0, hrp.Size.Y / 2 + 0.3, 0)
+
+    local topSP,    topVis    = cam:WorldToViewportPoint(topWorld)
+    local bottomSP, bottomVis = cam:WorldToViewportPoint(bottomWorld)
+    local hrpSP,    hrpVis   = cam:WorldToViewportPoint(hrp.Position)
+
+    -- Only show if at least HRP is on screen
+    if not hrpVis then hideDrawings(d) return end
+
+    local boxH   = math.abs(bottomSP.Y - topSP.Y)
+    local boxW   = boxH * 0.55  -- typical character aspect
+    local boxX   = hrpSP.X - boxW / 2
+    local boxY   = topSP.Y
+
+    local showBox    = state.esp and state.espBoxes
+    local showName   = state.esp and state.espNames
+    local showHealth = state.esp and state.espHealth
+    local showTracer = state.esp and state.espTracers
+
+    -- Box
+    if d.box then
+        d.box.Visible  = showBox
+        if showBox then
+            d.box.Position = Vector2.new(boxX, boxY)
+            d.box.Size     = Vector2.new(boxW, boxH)
+            d.box.Color    = PURPLE
+        end
+    end
+
+    -- Name
+    if d.nameText then
+        d.nameText.Visible = showName
+        if showName then
+            d.nameText.Text     = plr.DisplayName
+            d.nameText.Position = Vector2.new(hrpSP.X, topSP.Y - 16)
+            d.nameText.Color    = PURPLE
+        end
+    end
+
+    -- Health
+    local pct = math.clamp(hum.Health / math.max(hum.MaxHealth, 1), 0, 1)
+    local hpColor = Color3.fromRGB(
+        math.round(255 * (1 - pct)),
+        math.round(200 * pct),
+        0
+    )
+
+    if d.healthBg then
+        d.healthBg.Visible = showHealth
+        if showHealth then
+            d.healthBg.Position = Vector2.new(boxX - 6, boxY)
+            d.healthBg.Size     = Vector2.new(4, boxH)
+        end
+    end
+
+    if d.healthText then
+        -- We draw a filled bar on top of bg instead of text for cleaner look
+        -- Re-use healthText as the filled health bar
+        d.healthText.Visible = showHealth
+        if showHealth then
+            -- Actually draw it as a filled square for bar effect
+            -- (Drawing.Text doesn't make a bar; we'll show % text above head instead)
+            local hpStr = math.floor(pct * 100) .. "%"
+            d.healthText.Text     = hpStr
+            d.healthText.Position = Vector2.new(hrpSP.X, topSP.Y - 28)
+            d.healthText.Color    = hpColor
+        end
+    end
+
+    -- Tracer
+    if d.tracer then
+        d.tracer.Visible = showTracer
+        if showTracer then
+            local vp = cam.ViewportSize
+            d.tracer.From      = Vector2.new(vp.X / 2, vp.Y)
+            d.tracer.To        = Vector2.new(hrpSP.X, hrpSP.Y)
+            d.tracer.Color     = PURPLE
+            d.tracer.Thickness = tracerThickness
+        end
+    end
+
+    -- Chams (still done via material since Drawing can't do 3D)
+    if state.esp and state.chams then
+        for _, p in char:GetDescendants() do
+            if p:IsA("BasePart") then
+                p.Material = Enum.Material.Neon
+                p.Color    = PURPLE_DIM
+            end
+        end
+    end
+end
+
+local function cleanupESPForPlayer(plr)
+    if espDrawings[plr] then
+        destroyDrawings(espDrawings[plr])
+        espDrawings[plr] = nil
+    end
+end
+
+local function cleanupAllESP()
+    for plr, _ in espDrawings do
+        destroyDrawings(espDrawings[plr])
+        espDrawings[plr] = nil
+    end
+end
 
 -- ══════════════════════════════════════════
 --  CONFIG SAVE / LOAD
@@ -161,7 +380,7 @@ local function getClosestToMouse(partName)
         local hum  = char:FindFirstChildOfClass("Humanoid")
         if not part or not hum or hum.Health <= 0 then continue end
 
-        local sp, onScreen = cam:WorldToScreenPoint(part.Position)
+        local sp, onScreen = cam:WorldToViewportPoint(part.Position)
         if not onScreen then continue end
 
         local screenPos      = Vector2.new(sp.X, sp.Y)
@@ -211,50 +430,6 @@ RunService.RenderStepped:Connect(function()
     FovCircle.Size     = UDim2.new(0, r * 2, 0, r * 2)
     FovCircle.Position = UDim2.new(0, Mouse.X - r, 0, Mouse.Y - r)
 end)
-
--- Tracer container
-local TracerContainer = Instance.new("Frame")
-TracerContainer.Size = UDim2.new(1, 0, 1, 0)
-TracerContainer.BackgroundTransparency = 1
-TracerContainer.BorderSizePixel = 0
-TracerContainer.ZIndex = 5
-TracerContainer.Parent = ScreenGui
-
--- ══════════════════════════════════════════
---  TRACER HELPERS
--- ══════════════════════════════════════════
-local function getOrCreateTracer(plr)
-    if not tracerFrames[plr] then
-        local f = Instance.new("Frame")
-        f.AnchorPoint = Vector2.new(0, 0.5)
-        f.BackgroundColor3 = PURPLE
-        f.BorderSizePixel = 0
-        f.Size = UDim2.new(0, 0, 0, tracerThickness)
-        f.ZIndex = 5
-        f.Visible = false
-        f.Parent = TracerContainer
-        tracerFrames[plr] = f
-    end
-    return tracerFrames[plr]
-end
-
-local function updateTracer(plr, from, to)
-    local f = getOrCreateTracer(plr)
-    local dx = to.X - from.X
-    local dy = to.Y - from.Y
-    local length = math.sqrt(dx * dx + dy * dy)
-    local angle  = math.deg(math.atan2(dy, dx))
-    f.Size     = UDim2.new(0, length, 0, tracerThickness)
-    f.Position = UDim2.new(0, from.X, 0, from.Y)
-    f.Rotation = angle
-    f.Visible  = true
-end
-
-local function hideTracer(plr)
-    if tracerFrames[plr] then
-        tracerFrames[plr].Visible = false
-    end
-end
 
 -- ══════════════════════════════════════════
 --  MAIN WINDOW
@@ -314,7 +489,7 @@ local LogoSub = Instance.new("TextLabel")
 LogoSub.Size = UDim2.new(0, 60, 1, 0)
 LogoSub.Position = UDim2.new(0, 105, 0, 0)
 LogoSub.BackgroundTransparency = 1
-LogoSub.Text = "v1.3"
+LogoSub.Text = "v1.4"
 LogoSub.TextColor3 = SUBTEXT
 LogoSub.TextSize = 10
 LogoSub.Font = Enum.Font.Gotham
@@ -334,6 +509,7 @@ CloseBtn.Parent = TitleBar
 Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 4)
 CloseBtn.MouseButton1Click:Connect(function()
     saveConfig()
+    cleanupAllESP()
     ScreenGui:Destroy()
 end)
 
@@ -501,12 +677,7 @@ local function makeTabBtn(name, order)
     underline.Parent = btn
     Instance.new("UICorner", underline).CornerRadius = UDim.new(1, 0)
 
-    local tabData = {
-        btn        = btn,
-        underline  = underline,
-        leftItems  = {},
-        rightItems = {},
-    }
+    local tabData = { btn = btn, underline = underline, leftItems = {}, rightItems = {} }
     table.insert(tabs, tabData)
 
     btn.MouseButton1Click:Connect(function()
@@ -553,11 +724,8 @@ local function SectionLabel(text, isRight)
     f.Size = UDim2.new(1, 0, 0, 24)
     f.BackgroundTransparency = 1
     f.Visible = false
-    if isRight then
-        rightOrder += 1; f.LayoutOrder = rightOrder; f.Parent = RightScroll
-    else
-        leftOrder  += 1; f.LayoutOrder = leftOrder;  f.Parent = LeftScroll
-    end
+    if isRight then rightOrder += 1; f.LayoutOrder = rightOrder; f.Parent = RightScroll
+    else leftOrder += 1; f.LayoutOrder = leftOrder; f.Parent = LeftScroll end
     local line = Instance.new("Frame")
     line.Size = UDim2.new(1, 0, 0, 1)
     line.Position = UDim2.new(0, 0, 1, -1)
@@ -581,11 +749,8 @@ local function Toggle(name, keybind, default, callback, isRight)
     row.Size = UDim2.new(1, 0, 0, 26)
     row.BackgroundTransparency = 1
     row.Visible = false
-    if isRight then
-        rightOrder += 1; row.LayoutOrder = rightOrder; row.Parent = RightScroll
-    else
-        leftOrder  += 1; row.LayoutOrder = leftOrder;  row.Parent = LeftScroll
-    end
+    if isRight then rightOrder += 1; row.LayoutOrder = rightOrder; row.Parent = RightScroll
+    else leftOrder += 1; row.LayoutOrder = leftOrder; row.Parent = LeftScroll end
     local dot = Instance.new("Frame")
     dot.Size = UDim2.new(0, 14, 0, 14)
     dot.Position = UDim2.new(0, 0, 0.5, -7)
@@ -639,11 +804,8 @@ local function Slider(name, min, max, default, suffix, callback, isRight)
     card.Size = UDim2.new(1, 0, 0, 46)
     card.BackgroundTransparency = 1
     card.Visible = false
-    if isRight then
-        rightOrder += 1; card.LayoutOrder = rightOrder; card.Parent = RightScroll
-    else
-        leftOrder  += 1; card.LayoutOrder = leftOrder;  card.Parent = LeftScroll
-    end
+    if isRight then rightOrder += 1; card.LayoutOrder = rightOrder; card.Parent = RightScroll
+    else leftOrder += 1; card.LayoutOrder = leftOrder; card.Parent = LeftScroll end
     local nameLbl = Instance.new("TextLabel")
     nameLbl.Size = UDim2.new(0.6, 0, 0, 18)
     nameLbl.BackgroundTransparency = 1
@@ -711,11 +873,8 @@ local function Dropdown(name, options, default, callback, isRight)
     card.Size = UDim2.new(1, 0, 0, 26)
     card.BackgroundTransparency = 1
     card.Visible = false
-    if isRight then
-        rightOrder += 1; card.LayoutOrder = rightOrder; card.Parent = RightScroll
-    else
-        leftOrder  += 1; card.LayoutOrder = leftOrder;  card.Parent = LeftScroll
-    end
+    if isRight then rightOrder += 1; card.LayoutOrder = rightOrder; card.Parent = RightScroll
+    else leftOrder += 1; card.LayoutOrder = leftOrder; card.Parent = LeftScroll end
     local valLbl = Instance.new("TextLabel")
     valLbl.Size = UDim2.new(0.5, 0, 1, 0)
     valLbl.BackgroundTransparency = 1
@@ -755,11 +914,8 @@ local function KeybindPicker(name, default, callback, isRight)
     card.Size = UDim2.new(1, 0, 0, 26)
     card.BackgroundTransparency = 1
     card.Visible = false
-    if isRight then
-        rightOrder += 1; card.LayoutOrder = rightOrder; card.Parent = RightScroll
-    else
-        leftOrder  += 1; card.LayoutOrder = leftOrder;  card.Parent = LeftScroll
-    end
+    if isRight then rightOrder += 1; card.LayoutOrder = rightOrder; card.Parent = RightScroll
+    else leftOrder += 1; card.LayoutOrder = leftOrder; card.Parent = LeftScroll end
     local nameLbl = Instance.new("TextLabel")
     nameLbl.Size = UDim2.new(0.5, 0, 1, 0)
     nameLbl.BackgroundTransparency = 1
@@ -804,11 +960,8 @@ local function TextLabel(text, isRight)
     f.Size = UDim2.new(1, 0, 0, 20)
     f.BackgroundTransparency = 1
     f.Visible = false
-    if isRight then
-        rightOrder += 1; f.LayoutOrder = rightOrder; f.Parent = RightScroll
-    else
-        leftOrder  += 1; f.LayoutOrder = leftOrder;  f.Parent = LeftScroll
-    end
+    if isRight then rightOrder += 1; f.LayoutOrder = rightOrder; f.Parent = RightScroll
+    else leftOrder += 1; f.LayoutOrder = leftOrder; f.Parent = LeftScroll end
     local lbl = Instance.new("TextLabel")
     lbl.Size = UDim2.new(1, 0, 1, 0)
     lbl.BackgroundTransparency = 1
@@ -843,12 +996,10 @@ local aimRow, setAimEnabled = Toggle(
     function(on) state.aimEnabled = on end, false)
 addL(tCamlock, aimRow)
 
-addL(tCamlock, Toggle(
-    "Sticky Aim", "", state.stickyAim,
-    function(on)
-        state.stickyAim = on
-        stickyTarget = nil  -- reset lock when toggling
-    end, false))
+addL(tCamlock, Toggle("Sticky Aim", "", state.stickyAim, function(on)
+    state.stickyAim = on
+    stickyTarget = nil
+end, false))
 
 addL(tCamlock, Dropdown("Type", {"Camera", "Mouse"}, "Camera", function(v) end, false))
 
@@ -861,7 +1012,7 @@ addL(tCamlock, Dropdown("Camlock Body Part",
     state.camlockPart, function(v)
         state.camlockPart = v
         state.aimPart     = v
-        stickyTarget      = nil  -- reset lock when changing part
+        stickyTarget      = nil
     end, false))
 
 addL(tCamlock, Toggle("Show FOV", "", state.showFov, function(on)
@@ -876,7 +1027,6 @@ addL(tCamlock, Slider("Radius", 10, 400, state.aimFov, "px", function(v)
     state.aimFov = v
 end, false))
 
--- RIGHT: Advanced
 addR(tCamlock, SectionLabel("Advanced Settings", true))
 
 addR(tCamlock, Toggle("Use Advanced", "Custom", state.useAdvanced, function(on)
@@ -929,12 +1079,11 @@ addL(tVisuals, SectionLabel("ESP", false))
 addL(tVisuals, Toggle("ESP Master", "", state.esp, function(on)
     state.esp = on
     if not on then
-        for plr, objs in espObjects do
-            if objs.nameBB   then objs.nameBB.Enabled   = false end
-            if objs.healthBB then objs.healthBB.Enabled  = false end
-            if objs.box      then objs.box.Adornee       = nil   end
+        -- Hide all drawing objects but keep them allocated
+        for plr, d in espDrawings do
+            hideDrawings(d)
         end
-        for plr, _ in tracerFrames do hideTracer(plr) end
+        -- Reset chams
         for _, plr in Players:GetPlayers() do
             if plr ~= Player and plr.Character then
                 for _, part in plr.Character:GetDescendants() do
@@ -955,13 +1104,17 @@ addL(tVisuals, Toggle("Names", "", state.espNames, function(on)
     state.espNames = on
 end, false))
 
-addL(tVisuals, Toggle("Health Bars", "", state.espHealth, function(on)
+addL(tVisuals, Toggle("Health", "", state.espHealth, function(on)
     state.espHealth = on
 end, false))
 
 addL(tVisuals, Toggle("Tracers", "", state.espTracers, function(on)
     state.espTracers = on
-    if not on then for plr, _ in tracerFrames do hideTracer(plr) end end
+    if not on then
+        for plr, d in espDrawings do
+            if d.tracer then d.tracer.Visible = false end
+        end
+    end
 end, false))
 
 addL(tVisuals, Toggle("Chams", "", state.chams, function(on)
@@ -978,6 +1131,11 @@ addL(tVisuals, Toggle("Chams", "", state.chams, function(on)
         end
     end
 end, false))
+
+if not hasDrawing then
+    addL(tVisuals, TextLabel("⚠ Drawing API not available", false))
+    addL(tVisuals, TextLabel("ESP requires an executor with Drawing", false))
+end
 
 addR(tVisuals, SectionLabel("World", true))
 
@@ -1036,7 +1194,6 @@ end, false))
 
 addL(tMovement, Toggle("Speed Boost", "", state.speedBoost, function(on)
     state.speedBoost = on
-    -- speedBoost is enforced in the Heartbeat loop below
 end, false))
 
 addL(tMovement, Slider("Walk Speed", 8, 200, state.walkSpeed, "", function(v)
@@ -1077,8 +1234,8 @@ end, false))
 
 addL(tSettings, Slider("Tracer Thickness", 1, 5, 1, "px", function(v)
     tracerThickness = v
-    for _, f in tracerFrames do
-        f.Size = UDim2.new(0, f.Size.X.Offset, 0, v)
+    for plr, d in espDrawings do
+        if d.tracer then pcall(function() d.tracer.Thickness = v end) end
     end
 end, false))
 
@@ -1182,29 +1339,21 @@ UserInputService.JumpRequest:Connect(function()
 end)
 
 -- ══════════════════════════════════════════
---  HEARTBEAT: WalkSpeed + JumpPower + GodMode
---  Runs every frame to override Da Hood's speed
---  reset system and any other game that resets
---  humanoid properties server-side.
+--  HEARTBEAT: Speed + God + JumpPower
+--  Enforced every frame so Da Hood's reset
+--  system cannot override our values.
 -- ══════════════════════════════════════════
 RunService.Heartbeat:Connect(function()
     local hum = getHum()
     if not hum then return end
-
-    -- God mode
     if state.godMode then
         hum.Health = hum.MaxHealth
     end
-
-    -- WalkSpeed: always enforce every frame so games like
-    -- Da Hood that reset speed cannot override it
     if state.speedBoost then
         hum.WalkSpeed = 80
     else
         hum.WalkSpeed = state.walkSpeed
     end
-
-    -- JumpPower: same approach
     hum.JumpPower = state.jumpPower
 end)
 
@@ -1223,7 +1372,6 @@ local camlockToggleState = false
 
 UserInputService.InputBegan:Connect(function(inp, gpe)
     if gpe then return end
-
     local ok, kc = pcall(function() return Enum.KeyCode[state.camlockKeybind] end)
     if ok and kc and inp.KeyCode == kc then
         if state.camlockToggle then
@@ -1233,7 +1381,6 @@ UserInputService.InputBegan:Connect(function(inp, gpe)
             state.camlockEnabled = true
         end
     end
-
     if inp.KeyCode == Enum.KeyCode.RightShift then
         Win.Visible = not Win.Visible
     end
@@ -1244,37 +1391,32 @@ UserInputService.InputEnded:Connect(function(inp)
         local ok, kc = pcall(function() return Enum.KeyCode[state.camlockKeybind] end)
         if ok and kc and inp.KeyCode == kc then
             state.camlockEnabled = false
-            stickyTarget         = nil  -- release sticky on key up
+            stickyTarget         = nil
         end
     end
 end)
 
 -- ══════════════════════════════════════════
---  CAMLOCK LOOP  (with fixed sticky aim)
+--  CAMLOCK LOOP
 -- ══════════════════════════════════════════
 RunService.RenderStepped:Connect(function()
     if not state.aimEnabled     then stickyTarget = nil return end
     if not state.camlockEnabled then stickyTarget = nil return end
 
-    -- Sticky aim: validate existing sticky target each frame
     if state.stickyAim and stickyTarget then
         local char = stickyTarget.Character
         local hum  = char and char:FindFirstChildOfClass("Humanoid")
         if not char or not hum or hum.Health <= 0 or not stickyTarget.Parent then
             stickyTarget = nil
         else
-            -- Release if target has moved far outside FOV radius
             if state.useFov then
-                local part = char:FindFirstChild(state.camlockPart)
-                           or char:FindFirstChild("Head")
+                local part = char:FindFirstChild(state.camlockPart) or char:FindFirstChild("Head")
                 if part then
                     local cam = workspace.CurrentCamera
-                    local sp, onScreen = cam:WorldToScreenPoint(part.Position)
+                    local sp, onScreen = cam:WorldToViewportPoint(part.Position)
                     if onScreen then
-                        local distFromMouse = (Vector2.new(sp.X, sp.Y) - Vector2.new(Mouse.X, Mouse.Y)).Magnitude
-                        if distFromMouse > state.aimFov * 2.5 then
-                            stickyTarget = nil
-                        end
+                        local dist = (Vector2.new(sp.X, sp.Y) - Vector2.new(Mouse.X, Mouse.Y)).Magnitude
+                        if dist > state.aimFov * 2.5 then stickyTarget = nil end
                     else
                         stickyTarget = nil
                     end
@@ -1283,7 +1425,6 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    -- Pick a new target if needed
     if not stickyTarget or not state.stickyAim then
         stickyTarget = getClosestToMouse(state.camlockPart)
     end
@@ -1299,7 +1440,6 @@ RunService.RenderStepped:Connect(function()
     local origin    = cam.CFrame.Position
     local targetPos = part.Position
 
-    -- Prediction
     if state.useAdvanced and state.predictX > 0 then
         local hrp = target.Character:FindFirstChild("HumanoidRootPart")
         if hrp then
@@ -1328,149 +1468,63 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ══════════════════════════════════════════
---  ESP + TRACER LOOP
+--  ESP LOOP  (Drawing-based, AlwaysOnTop)
+--  Runs every frame. Drawing objects render
+--  above everything including walls since
+--  they bypass the 3D scene entirely.
 -- ══════════════════════════════════════════
 RunService.RenderStepped:Connect(function()
-    local cam    = workspace.CurrentCamera
-    local bottom = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y)
-
-    for plr, _ in espObjects do
+    -- Clean up drawings for players who left
+    for plr, _ in espDrawings do
         if not plr or not plr.Parent then
-            local objs = espObjects[plr]
-            if objs then
-                if objs.nameBB   then objs.nameBB:Destroy()  end
-                if objs.healthBB then objs.healthBB:Destroy() end
-                if objs.box      then objs.box:Destroy()      end
-            end
-            espObjects[plr] = nil
-            if tracerFrames[plr] then
-                tracerFrames[plr]:Destroy()
-                tracerFrames[plr] = nil
-            end
+            cleanupESPForPlayer(plr)
         end
     end
 
     for _, plr in Players:GetPlayers() do
         if plr == Player then continue end
-        local char = plr.Character
-        if not char then hideTracer(plr) continue end
 
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if not hrp or not hum then hideTracer(plr) continue end
-
-        local sp, onScreen = cam:WorldToScreenPoint(hrp.Position)
-        if not onScreen then
-            hideTracer(plr)
-            if espObjects[plr] then
-                if espObjects[plr].nameBB   then espObjects[plr].nameBB.Enabled   = false end
-                if espObjects[plr].healthBB then espObjects[plr].healthBB.Enabled  = false end
-                if espObjects[plr].box      then espObjects[plr].box.Adornee       = nil   end
-            end
+        if not state.esp then
+            -- If ESP is off, make sure drawings are hidden
+            if espDrawings[plr] then hideDrawings(espDrawings[plr]) end
             continue
         end
 
-        if not espObjects[plr] then
-            espObjects[plr] = {}
-            local box = Instance.new("SelectionBox")
-            box.Color3 = PURPLE
-            box.LineThickness = 0.03
-            box.SurfaceTransparency = 1
-            box.SurfaceColor3 = PURPLE
-            box.Parent = workspace
-            espObjects[plr].box = box
-
-            local bb = Instance.new("BillboardGui")
-            bb.Size = UDim2.new(0, 120, 0, 18)
-            bb.StudsOffset = Vector3.new(0, 3.2, 0)
-            bb.AlwaysOnTop = true
-            bb.Parent = hrp
-            local nl = Instance.new("TextLabel")
-            nl.Size = UDim2.new(1, 0, 1, 0)
-            nl.BackgroundTransparency = 1
-            nl.TextColor3 = PURPLE
-            nl.TextStrokeColor3 = Color3.new(0,0,0)
-            nl.TextStrokeTransparency = 0.5
-            nl.TextSize = 12
-            nl.Font = Enum.Font.GothamBold
-            nl.Parent = bb
-            espObjects[plr].nameBB  = bb
-            espObjects[plr].nameLbl = nl
-
-            local hbb = Instance.new("BillboardGui")
-            hbb.Size = UDim2.new(0, 5, 0, 36)
-            hbb.StudsOffset = Vector3.new(-2.2, 0, 0)
-            hbb.AlwaysOnTop = true
-            hbb.Parent = hrp
-            local hbg = Instance.new("Frame")
-            hbg.Size = UDim2.new(1, 0, 1, 0)
-            hbg.BackgroundColor3 = Color3.fromRGB(25, 8, 8)
-            hbg.BorderSizePixel = 0
-            hbg.Parent = hbb
-            Instance.new("UICorner", hbg).CornerRadius = UDim.new(0, 2)
-            local hfill = Instance.new("Frame")
-            hfill.BackgroundColor3 = Color3.fromRGB(80, 200, 80)
-            hfill.BorderSizePixel = 0
-            hfill.AnchorPoint = Vector2.new(0, 1)
-            hfill.Position = UDim2.new(0, 0, 1, 0)
-            hfill.Parent = hbg
-            Instance.new("UICorner", hfill).CornerRadius = UDim.new(0, 2)
-            espObjects[plr].healthBB   = hbb
-            espObjects[plr].healthFill = hfill
-        end
-
-        local objs = espObjects[plr]
-
-        if objs.box then
-            objs.box.Adornee = (state.esp and state.espBoxes) and hrp or nil
-        end
-        if objs.nameBB and objs.nameLbl then
-            objs.nameBB.Enabled = state.esp and state.espNames
-            objs.nameLbl.Text   = plr.DisplayName
-        end
-        if objs.healthBB and objs.healthFill then
-            objs.healthBB.Enabled = state.esp and state.espHealth
-            local pct = math.clamp(hum.Health / math.max(hum.MaxHealth, 1), 0, 1)
-            objs.healthFill.Size = UDim2.new(1, 0, pct, 0)
-            objs.healthFill.BackgroundColor3 = Color3.fromRGB(
-                math.round(200 * (1 - pct)),
-                math.round(200 * pct),
-                0
-            )
-        end
-
-        if state.esp and state.chams then
-            for _, p in char:GetDescendants() do
-                if p:IsA("BasePart") then
-                    p.Material = Enum.Material.Neon
-                    p.Color    = PURPLE_DIM
-                end
-            end
-        end
-
-        if state.esp and state.espTracers and onScreen then
-            updateTracer(plr, bottom, Vector2.new(sp.X, sp.Y))
-        else
-            hideTracer(plr)
-        end
+        -- This creates drawings lazily if they don't exist yet,
+        -- handles players who joined after the script started,
+        -- and updates all properties every frame.
+        updateESPForPlayer(plr)
     end
 end)
 
--- Respawn cleanup
+-- ══════════════════════════════════════════
+--  PLAYER JOIN/LEAVE EVENTS
+--  Ensure ESP objects are cleaned up properly
+-- ══════════════════════════════════════════
+Players.PlayerAdded:Connect(function(plr)
+    -- Drawing objects are created lazily in updateESPForPlayer
+    -- so nothing needed here — it auto-creates on next frame
+end)
+
+Players.PlayerRemoving:Connect(function(plr)
+    cleanupESPForPlayer(plr)
+end)
+
+-- ══════════════════════════════════════════
+--  RESPAWN CLEANUP
+-- ══════════════════════════════════════════
 Player.CharacterAdded:Connect(function()
     state.flyEnabled = false
     stickyTarget     = nil
     bv = nil
     bg = nil
-    espObjects = {}
-    for plr, f in tracerFrames do
-        if f then f:Destroy() end
-    end
-    tracerFrames = {}
+    -- Don't wipe espDrawings on respawn — other players didn't leave
+    -- Just let the loop handle it next frame
 end)
 
 game:BindToClose(function()
     saveConfig()
+    cleanupAllESP()
 end)
 
 -- ══════════════════════════════════════════
@@ -1478,5 +1532,8 @@ end)
 -- ══════════════════════════════════════════
 activateTab(tCamlock)
 
-print("[Venom.lol v1.3] Loaded ✓")
+print("[Venom.lol v1.4] Loaded ✓")
+if not hasDrawing then
+    print("[Venom.lol] WARNING: Drawing API not found. ESP requires an executor that supports Drawing.new()")
+end
 print("Hold [" .. state.camlockKeybind .. "] to aimlock | RShift to toggle GUI")
