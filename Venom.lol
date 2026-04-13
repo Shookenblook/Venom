@@ -1,42 +1,109 @@
--- Venom.lol GUI - Fixed & Complete v1.6
--- Key system integrated
+-- Venom.lol GUI - v1.7
+-- Whitelist system by Roblox User ID
 
 -- ══════════════════════════════════════════
---  KEY SYSTEM
+--  WHITELIST CHECK
 -- ══════════════════════════════════════════
-local API  = "https://subventionary-letha-boughten.ngrok-free.dev"
-local hwid = game:GetService("RbxAnalyticsService"):GetClientId()
+local SERVER = "https://subventionary-letha-boughten.ngrok-free.dev"
+local rbxid  = tostring(game:GetService("Players").LocalPlayer.UserId)
 
-local function http(url)
-    local ok, res = pcall(function()
-        return game:HttpGet(url)
-    end)
-    return ok and res or nil
+-- Loading screen
+local _Players  = game:GetService("Players")
+local loadGui   = Instance.new("ScreenGui")
+loadGui.Name         = "VenomLoad"
+loadGui.ResetOnSpawn = false
+loadGui.Parent       = _Players.LocalPlayer:WaitForChild("PlayerGui")
+
+local bg = Instance.new("Frame")
+bg.Size                   = UDim2.new(1, 0, 1, 0)
+bg.BackgroundColor3       = Color3.fromRGB(5, 5, 8)
+bg.BackgroundTransparency = 0
+bg.BorderSizePixel        = 0
+bg.Parent                 = loadGui
+
+local card = Instance.new("Frame")
+card.Size             = UDim2.new(0, 340, 0, 150)
+card.Position         = UDim2.new(0.5, -170, 0.5, -75)
+card.BackgroundColor3 = Color3.fromRGB(14, 14, 20)
+card.BorderSizePixel  = 0
+card.Parent           = loadGui
+Instance.new("UICorner", card).CornerRadius = UDim.new(0, 10)
+local cs = Instance.new("UIStroke", card)
+cs.Color     = Color3.fromRGB(138, 43, 226)
+cs.Thickness = 1.5
+
+local titleLbl = Instance.new("TextLabel")
+titleLbl.Size               = UDim2.new(1, 0, 0, 46)
+titleLbl.Position           = UDim2.new(0, 0, 0, 8)
+titleLbl.BackgroundTransparency = 1
+titleLbl.Text               = "venom.lol"
+titleLbl.TextColor3         = Color3.fromRGB(138, 43, 226)
+titleLbl.TextSize           = 24
+titleLbl.Font               = Enum.Font.GothamBold
+titleLbl.Parent             = card
+
+local statusLbl = Instance.new("TextLabel")
+statusLbl.Size               = UDim2.new(1, -24, 0, 30)
+statusLbl.Position           = UDim2.new(0, 12, 0, 60)
+statusLbl.BackgroundTransparency = 1
+statusLbl.Text               = "Checking whitelist..."
+statusLbl.TextColor3         = Color3.fromRGB(130, 120, 150)
+statusLbl.TextSize           = 13
+statusLbl.Font               = Enum.Font.Gotham
+statusLbl.TextXAlignment     = Enum.TextXAlignment.Center
+statusLbl.Parent             = card
+
+local idLbl = Instance.new("TextLabel")
+idLbl.Size               = UDim2.new(1, -24, 0, 22)
+idLbl.Position           = UDim2.new(0, 12, 0, 94)
+idLbl.BackgroundTransparency = 1
+idLbl.Text               = "User ID: " .. rbxid
+idLbl.TextColor3         = Color3.fromRGB(60, 55, 80)
+idLbl.TextSize           = 10
+idLbl.Font               = Enum.Font.Gotham
+idLbl.TextXAlignment     = Enum.TextXAlignment.Center
+idLbl.Parent             = card
+
+local subLbl = Instance.new("TextLabel")
+subLbl.Size               = UDim2.new(1, -24, 0, 20)
+subLbl.Position           = UDim2.new(0, 12, 0, 120)
+subLbl.BackgroundTransparency = 1
+subLbl.Text               = ""
+subLbl.TextColor3         = Color3.fromRGB(138, 43, 226)
+subLbl.TextSize           = 10
+subLbl.Font               = Enum.Font.Gotham
+subLbl.TextXAlignment     = Enum.TextXAlignment.Center
+subLbl.Parent             = card
+
+-- Do the whitelist check
+local ok, result = pcall(function()
+    return game:HttpGet(SERVER .. "/check?rbxid=" .. rbxid)
+end)
+
+if not ok then result = "api_error" end
+result = result and result:gsub("%s+", "") or "api_error"
+
+if result == "valid" then
+    statusLbl.Text       = "Access Granted!"
+    statusLbl.TextColor3 = Color3.fromRGB(50, 200, 50)
+    idLbl.Text           = "Welcome!"
+    task.wait(1)
+    loadGui:Destroy()
+else
+    local messages = {
+        not_whitelisted = {"Not Whitelisted",  "Contact an admin on Discord to get access."},
+        blacklisted     = {"Blacklisted",       "You have been blacklisted from venom.lol."},
+        expired         = {"Access Expired",    "Your whitelist has expired. Contact an admin."},
+        api_error       = {"Server Error",      "Could not reach the server. Try again later."},
+        missing_id      = {"Error",             "Could not read your Roblox User ID."},
+    }
+    local msg = messages[result] or {"Access Denied", "Status: " .. tostring(result)}
+    statusLbl.Text       = msg[1]
+    statusLbl.TextColor3 = Color3.fromRGB(200, 50, 50)
+    idLbl.Text           = msg[2]
+    subLbl.Text          = "discord.gg/yourserver"
+    return  -- stop script here, nothing loads
 end
-
-local key = rawget(_G, "getkey")
-if not key then
-    warn("[Venom] No key provided. Set _G.getkey = 'YOUR_KEY' before running.")
-    return
-end
-
-local res = http(API .. "/verify?key=" .. key .. "&hwid=" .. hwid)
-if not res then
-    warn("[Venom] API error - could not reach server.")
-    return
-end
-
-if res ~= "valid" and res:sub(1,6) ~= "valid:" then
-    warn("[Venom] Invalid key: " .. tostring(res))
-    return
-end
-
-local token = nil
-if res:sub(1,6) == "valid:" then
-    token = res:sub(7)
-end
-
-print("[Venom] Key verified. Loading...")
 
 -- ══════════════════════════════════════════
 --  SERVICES
@@ -643,24 +710,24 @@ local LogoSub = Instance.new("TextLabel")
 LogoSub.Size           = UDim2.new(0, 60, 1, 0)
 LogoSub.Position       = UDim2.new(0, 105, 0, 0)
 LogoSub.BackgroundTransparency = 1
-LogoSub.Text           = "v1.6"
+LogoSub.Text           = "v1.7"
 LogoSub.TextColor3     = SUBTEXT
 LogoSub.TextSize       = 10
 LogoSub.Font           = Enum.Font.Gotham
 LogoSub.TextXAlignment = Enum.TextXAlignment.Left
 LogoSub.Parent         = TitleBar
 
--- Key indicator in title bar
-local KeyIndicator = Instance.new("TextLabel")
-KeyIndicator.Size           = UDim2.new(0, 120, 1, 0)
-KeyIndicator.Position       = UDim2.new(0, 160, 0, 0)
-KeyIndicator.BackgroundTransparency = 1
-KeyIndicator.Text           = "KEY: " .. tostring(key):sub(1,8) .. "..."
-KeyIndicator.TextColor3     = GREEN
-KeyIndicator.TextSize       = 9
-KeyIndicator.Font           = Enum.Font.Gotham
-KeyIndicator.TextXAlignment = Enum.TextXAlignment.Left
-KeyIndicator.Parent         = TitleBar
+-- Whitelist status indicator
+local WLIndicator = Instance.new("TextLabel")
+WLIndicator.Size           = UDim2.new(0, 140, 1, 0)
+WLIndicator.Position       = UDim2.new(0, 160, 0, 0)
+WLIndicator.BackgroundTransparency = 1
+WLIndicator.Text           = "Whitelisted: " .. rbxid
+WLIndicator.TextColor3     = GREEN
+WLIndicator.TextSize       = 9
+WLIndicator.Font           = Enum.Font.Gotham
+WLIndicator.TextXAlignment = Enum.TextXAlignment.Left
+WLIndicator.Parent         = TitleBar
 
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Size             = UDim2.new(0, 22, 0, 22)
@@ -690,8 +757,8 @@ MinBtn.Parent           = TitleBar
 Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0, 4)
 
 local TabBarFrame = Instance.new("Frame")
-TabBarFrame.Size     = UDim2.new(1, -300, 1, 0)
-TabBarFrame.Position = UDim2.new(0, 290, 0, 0)
+TabBarFrame.Size     = UDim2.new(1, -320, 1, 0)
+TabBarFrame.Position = UDim2.new(0, 310, 0, 0)
 TabBarFrame.BackgroundTransparency = 1
 TabBarFrame.Parent   = TitleBar
 
@@ -1037,17 +1104,14 @@ addL(tCamlock, Toggle("Sticky Aim","",state.stickyAim,function(on)
 end, false))
 
 addL(tCamlock, Dropdown("Type",{"Camera","Mouse"},"Camera",function(v) end,false))
-
 addL(tCamlock, Dropdown("Target Method",
     {"Closest To Mouse","Closest To Camera","Lowest Health"},
     state.aimMethod, function(v) state.aimMethod=v end, false))
-
 addL(tCamlock, Dropdown("Camlock Body Part",
     {"Head","HumanoidRootPart","Torso"},
     state.camlockPart, function(v)
         state.camlockPart=v; state.aimPart=v; stickyTarget=nil
     end, false))
-
 addL(tCamlock, Toggle("Show FOV","",state.showFov,function(on) state.showFov=on end, false))
 addL(tCamlock, Toggle("Use FOV","",state.useFov,function(on) state.useFov=on end, false))
 addL(tCamlock, Slider("Radius",10,400,state.aimFov,"px",function(v) state.aimFov=v end, false))
@@ -1162,7 +1226,6 @@ addL(tVisuals, Toggle("ESP Master","",state.esp,function(on)
         end
     end
 end, false))
-
 addL(tVisuals, Toggle("Boxes","",state.espBoxes,function(on) state.espBoxes=on end, false))
 addL(tVisuals, Toggle("Names","",state.espNames,function(on) state.espNames=on end, false))
 addL(tVisuals, Toggle("Health","",state.espHealth,function(on) state.espHealth=on end, false))
@@ -1299,7 +1362,6 @@ addL(tMovement, Toggle("Fly","",state.flyEnabled,function(on)
         hum.PlatformStand=false
     end
 end, false))
-
 addL(tMovement, Toggle("Noclip","",state.noclip,function(on) state.noclip=on end, false))
 addL(tMovement, Toggle("Infinite Jump","",state.infiniteJump,function(on) state.infiniteJump=on end, false))
 addL(tMovement, Toggle("Speed Boost","",state.speedBoost,function(on) state.speedBoost=on end, false))
@@ -1363,10 +1425,9 @@ addR(tSettings, TextLabel("GUI Toggle:  [RShift]", true))
 addR(tSettings, TextLabel("Fly:         [toggle via UI]", true))
 addR(tSettings, TextLabel("Aimlock:     [see camlock tab]", true))
 
--- Key info in settings
-addR(tSettings, SectionLabel("Key Info", true))
-addR(tSettings, TextLabel("Status: Verified", true))
-addR(tSettings, TextLabel("HWID locked to this device", true))
+addR(tSettings, SectionLabel("Whitelist Info", true))
+addR(tSettings, TextLabel("Status: Whitelisted", true))
+addR(tSettings, TextLabel("ID: " .. rbxid, true))
 
 -- ══════════════════════════════════════════
 --  CONFIG TAB
@@ -1547,7 +1608,6 @@ RunService.RenderStepped:Connect(function()
 
     local target=stickyTarget
     if not target or not target.Character then return end
-
     local part = target.Character:FindFirstChild(state.camlockPart)
                or target.Character:FindFirstChild("Head")
     if not part then return end
@@ -1568,7 +1628,6 @@ RunService.RenderStepped:Connect(function()
     end
 
     local targetCF = CFrame.lookAt(origin, targetPos)
-
     if state.useAdvanced and state.smoothingOn then
         local smooth=math.clamp(state.smoothX/20,0.01,1)
         if     state.camlockStyle=="Linear"    then cam.CFrame=cam.CFrame:Lerp(targetCF,smooth)
@@ -1604,14 +1663,11 @@ RunService.RenderStepped:Connect(function()
     MinimapFrame.Visible = state.minimapEnabled
     mapLayer.Visible     = state.showGameMap
     if not state.minimapEnabled then return end
-
     local selfHRP = getHRP()
     if not selfHRP then return end
-
     local selfPos  = selfHRP.Position
     local cam      = workspace.CurrentCamera
     local _,camY,_ = cam.CFrame:ToEulerAnglesYXZ()
-
     if mapScanned then
         local normX = (selfPos.X - mapMinX) / math.max(mapMaxX - mapMinX, 1)
         local normZ = (selfPos.Z - mapMinZ) / math.max(mapMaxZ - mapMinZ, 1)
@@ -1619,7 +1675,6 @@ RunService.RenderStepped:Connect(function()
         local offZ  = (0.5 - normZ) * MINIMAP_SIZE
         mapLayer.Position = UDim2.new(0, offX, 0, offZ)
     end
-
     local dotIdx = 0
     for _,plr in Players:GetPlayers() do
         if plr==Player then continue end
@@ -1627,21 +1682,17 @@ RunService.RenderStepped:Connect(function()
         local hrp=char and char:FindFirstChild("HumanoidRootPart")
         local hum=char and char:FindFirstChildOfClass("Humanoid")
         if not hrp or not hum or hum.Health<=0 then continue end
-
         dotIdx+=1
         local dot=getMMDot(dotIdx)
         dot.Visible=true
-
         local dn=dot:FindFirstChildOfClass("TextLabel")
         if dn then dn.Text=plr.Name end
-
         local offset=hrp.Position-selfPos
         local rotX  = offset.X*math.cos(camY)+offset.Z*math.sin(camY)
         local rotZ  =-offset.X*math.sin(camY)+offset.Z*math.cos(camY)
         local px=math.clamp(rotX/state.minimapRange,-1,1)*(MINIMAP_SIZE/2)
         local py=math.clamp(rotZ/state.minimapRange,-1,1)*(MINIMAP_SIZE/2)
         dot.Position=UDim2.new(0.5,px,0.5,py)
-
         if plr==stickyTarget then
             dot.BackgroundColor3=PURPLE
         else
@@ -1654,7 +1705,6 @@ RunService.RenderStepped:Connect(function()
             end
         end
     end
-
     for i=dotIdx+1,#mmDots do mmDots[i].Visible=false end
 end)
 
@@ -1676,5 +1726,5 @@ game:BindToClose(function() saveConfig(); cleanupAllESP() end)
 -- ══════════════════════════════════════════
 activateTab(tCamlock)
 
-print("[Venom.lol v1.6] Loaded")
+print("[Venom.lol v1.7] Loaded - Whitelisted: " .. rbxid)
 print("Mode: "..state.camlockMode.." | Key: "..state.camlockKeybind.." | RShift = toggle GUI")
