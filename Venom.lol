@@ -22,7 +22,7 @@ local IsComputer = UserInputService.KeyboardEnabled and UserInputService.MouseEn
 -- ══════════════════════════════════════════
 --  WHITELIST
 -- ══════════════════════════════════════════
-local NGROK_URL = "https://subventionary-letha-boughten.ngrok-free.dev/verify"
+local NGROK_URL = "https://subventionary-letha-boughten.ngrok-free.dev"
 
 local function CheckWhitelist()
     local success, response = pcall(function()
