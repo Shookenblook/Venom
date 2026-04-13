@@ -1,6 +1,46 @@
 -- Venom.lol GUI - Fixed & Complete v1.6
--- fixed mini map esp preview comeing soon
+-- Key system integrated
 
+-- ══════════════════════════════════════════
+--  KEY SYSTEM
+-- ══════════════════════════════════════════
+local API  = "https://subventionary-letha-boughten.ngrok-free.dev"
+local hwid = game:GetService("RbxAnalyticsService"):GetClientId()
+
+local function http(url)
+    local ok, res = pcall(function()
+        return game:HttpGet(url)
+    end)
+    return ok and res or nil
+end
+
+local key = rawget(_G, "getkey")
+if not key then
+    warn("[Venom] No key provided. Set _G.getkey = 'YOUR_KEY' before running.")
+    return
+end
+
+local res = http(API .. "/verify?key=" .. key .. "&hwid=" .. hwid)
+if not res then
+    warn("[Venom] API error - could not reach server.")
+    return
+end
+
+if res ~= "valid" and res:sub(1,6) ~= "valid:" then
+    warn("[Venom] Invalid key: " .. tostring(res))
+    return
+end
+
+local token = nil
+if res:sub(1,6) == "valid:" then
+    token = res:sub(7)
+end
+
+print("[Venom] Key verified. Loading...")
+
+-- ══════════════════════════════════════════
+--  SERVICES
+-- ══════════════════════════════════════════
 local Players          = game:GetService("Players")
 local TweenService     = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
@@ -45,11 +85,10 @@ local state = {
     aimFov            = 50,
     showFov           = false,
     useFov            = true,
-
     camlockEnabled    = false,
     camlockKeybind    = "Q",
-    camlockMode       = "Hold",   -- "Hold" | "Toggle" | "OnePress"
-    camlockToggle     = false,    -- legacy, kept for compat
+    camlockMode       = "Hold",
+    camlockToggle     = false,
     camlockPart       = "Head",
     useAdvanced       = false,
     smoothingOn       = false,
@@ -58,7 +97,6 @@ local state = {
     smoothX           = 5,
     smoothY           = 5,
     camlockStyle      = "Linear",
-
     esp               = false,
     espBoxes          = false,
     espNames          = false,
@@ -68,18 +106,15 @@ local state = {
     fullbright        = false,
     noFog             = false,
     noShadows         = false,
-
     flyEnabled        = false,
     noclip            = false,
     infiniteJump      = false,
     speedBoost        = false,
     walkSpeed         = 16,
     jumpPower         = 50,
-
     godMode           = false,
     antiAfk           = false,
     invisible         = false,
-
     minimapEnabled    = true,
     minimapRange      = 300,
     showGameMap       = true,
@@ -89,14 +124,8 @@ local bv, bg
 local stickyTarget    = nil
 local tracerThickness = 1
 local MINIMAP_SIZE    = 180
-
--- ══════════════════════════════════════════
---  ONE-PRESS MODE STATE
---  Fires once per key press, locks for
---  exactly one snap then releases.
--- ══════════════════════════════════════════
-local onePressActive  = false   -- true during the single snap frame
-local onePressUsed    = false   -- consumed this press?
+local onePressActive  = false
+local onePressUsed    = false
 
 -- ══════════════════════════════════════════
 --  ESP DRAWING OBJECTS
@@ -164,8 +193,8 @@ local function updateESPForPlayer(plr)
     local cam = workspace.CurrentCamera
     local topWorld    = head.Position + Vector3.new(0, head.Size.Y/2+0.1, 0)
     local bottomWorld = hrp.Position  - Vector3.new(0, hrp.Size.Y/2+0.3, 0)
-    local topSP,_   = cam:WorldToViewportPoint(topWorld)
-    local bottomSP,_= cam:WorldToViewportPoint(bottomWorld)
+    local topSP,_    = cam:WorldToViewportPoint(topWorld)
+    local bottomSP,_ = cam:WorldToViewportPoint(bottomWorld)
     local hrpSP, hrpVis = cam:WorldToViewportPoint(hrp.Position)
     if not hrpVis then hideDrawings(d) return end
     local boxH = math.abs(bottomSP.Y - topSP.Y)
@@ -193,8 +222,7 @@ local function updateESPForPlayer(plr)
         end
     end
     local pct = math.clamp(hum.Health/math.max(hum.MaxHealth,1), 0, 1)
-    local hpColor = Color3.fromRGB(
-        math.round(255*(1-pct)), math.round(200*pct), 0)
+    local hpColor = Color3.fromRGB(math.round(255*(1-pct)), math.round(200*pct), 0)
     if d.healthBg then
         d.healthBg.Visible = showHealth
         if showHealth then
@@ -305,21 +333,16 @@ end
 
 -- ══════════════════════════════════════════
 --  MAP SCANNER
---  Samples BasePart positions across the
---  workspace to build a top-down heat map.
---  Runs once at load + on demand.
 -- ══════════════════════════════════════════
-local MAP_CELLS     = 64          -- grid resolution
+local MAP_CELLS  = 64
 local mapMinX, mapMaxX = math.huge, -math.huge
 local mapMinZ, mapMaxZ = math.huge, -math.huge
-local mapGrid       = {}          -- [row][col] = density 0-1
-local mapScanned    = false
+local mapGrid    = {}
+local mapScanned = false
 
 local function scanMap()
     mapMinX, mapMaxX = math.huge, -math.huge
     mapMinZ, mapMaxZ = math.huge, -math.huge
-
-    -- Pass 1: find world bounds from BaseParts
     for _, obj in workspace:GetDescendants() do
         if obj:IsA("BasePart") and not obj:IsDescendantOf(Player.Character or game) then
             local p = obj.Position
@@ -329,49 +352,37 @@ local function scanMap()
             if p.Z > mapMaxZ then mapMaxZ = p.Z end
         end
     end
-
-    -- Fallback bounds
     if mapMinX == math.huge then
         mapMinX, mapMaxX = -500, 500
         mapMinZ, mapMaxZ = -500, 500
     end
-
-    -- Add 5% padding
     local padX = (mapMaxX - mapMinX) * 0.05
     local padZ = (mapMaxZ - mapMinZ) * 0.05
-    mapMinX = mapMinX - padX ; mapMaxX = mapMaxX + padX
-    mapMinZ = mapMinZ - padZ ; mapMaxZ = mapMaxZ + padZ
-
-    -- Pass 2: fill density grid
+    mapMinX = mapMinX - padX; mapMaxX = mapMaxX + padX
+    mapMinZ = mapMinZ - padZ; mapMaxZ = mapMaxZ + padZ
     local cellCountX = (mapMaxX - mapMinX) / MAP_CELLS
     local cellCountZ = (mapMaxZ - mapMinZ) / MAP_CELLS
     local rawGrid    = {}
     local maxDensity = 0
-
     for r = 1, MAP_CELLS do rawGrid[r] = {} for c = 1, MAP_CELLS do rawGrid[r][c] = 0 end end
-
     for _, obj in workspace:GetDescendants() do
         if obj:IsA("BasePart") and not obj:IsDescendantOf(Player.Character or game) then
-            local p  = obj.Position
+            local p   = obj.Position
             local col = math.clamp(math.floor((p.X - mapMinX)/cellCountX)+1, 1, MAP_CELLS)
             local row = math.clamp(math.floor((p.Z - mapMinZ)/cellCountZ)+1, 1, MAP_CELLS)
             rawGrid[row][col] = rawGrid[row][col] + 1
             if rawGrid[row][col] > maxDensity then maxDensity = rawGrid[row][col] end
         end
     end
-
-    -- Normalise
     for r = 1, MAP_CELLS do
         mapGrid[r] = {}
         for c = 1, MAP_CELLS do
             mapGrid[r][c] = maxDensity > 0 and (rawGrid[r][c] / maxDensity) or 0
         end
     end
-
     mapScanned = true
 end
 
--- Run scan in a separate thread so it doesn't freeze the frame
 task.spawn(scanMap)
 
 -- ══════════════════════════════════════════
@@ -384,7 +395,7 @@ ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent         = PlayerGui
 
 -- ══════════════════════════════════════════
---  MINIMAP CONTAINER
+--  MINIMAP
 -- ══════════════════════════════════════════
 local MinimapFrame = Instance.new("Frame")
 MinimapFrame.Size             = UDim2.new(0, MINIMAP_SIZE, 0, MINIMAP_SIZE)
@@ -396,10 +407,8 @@ MinimapFrame.Visible          = state.minimapEnabled
 MinimapFrame.Parent           = ScreenGui
 Instance.new("UICorner", MinimapFrame).CornerRadius = UDim.new(0, 8)
 local mmStroke = Instance.new("UIStroke", MinimapFrame)
-mmStroke.Color     = PURPLE_DIM
-mmStroke.Thickness = 1.5
+mmStroke.Color = PURPLE_DIM; mmStroke.Thickness = 1.5
 
--- Clip frame (square, map fills it)
 local mmClip = Instance.new("Frame")
 mmClip.Size               = UDim2.new(1, 0, 1, 0)
 mmClip.BackgroundTransparency = 1
@@ -408,23 +417,15 @@ mmClip.ZIndex             = 5
 mmClip.Parent             = MinimapFrame
 Instance.new("UICorner", mmClip).CornerRadius = UDim.new(0, 8)
 
--- ══════════════════════════════════════════
---  GAME MAP LAYER  (pixel grid inside mmClip)
---  We create MAP_CELLS² small Frame tiles
---  and colour them by density. This gives a
---  real top-down map of the actual game world.
--- ══════════════════════════════════════════
 local mapLayer = Instance.new("Frame")
 mapLayer.Size               = UDim2.new(1, 0, 1, 0)
 mapLayer.BackgroundTransparency = 1
 mapLayer.ZIndex             = 5
 mapLayer.Parent             = mmClip
 
--- We use a flat pixel grid (MAP_CELLS × MAP_CELLS frames)
--- Only create them once; recolour when scan completes
-local TILE_COUNT  = MAP_CELLS
-local tilePx      = MINIMAP_SIZE / TILE_COUNT
-local mapTiles    = {}   -- [row][col] = Frame
+local TILE_COUNT = MAP_CELLS
+local tilePx     = MINIMAP_SIZE / TILE_COUNT
+local mapTiles   = {}
 
 for r = 1, TILE_COUNT do
     mapTiles[r] = {}
@@ -440,36 +441,32 @@ for r = 1, TILE_COUNT do
     end
 end
 
--- Recolour tiles from scan data
 local function applyMapGrid()
     if not mapScanned then return end
     for r = 1, TILE_COUNT do
         for c = 1, TILE_COUNT do
             local d    = mapGrid[r] and mapGrid[r][c] or 0
-            -- Dark purple for empty, brighter for dense (walls/floors)
             local grey = math.clamp(d, 0, 1)
             mapTiles[r][c].BackgroundColor3 = Color3.fromRGB(
-                math.round(20  + grey * 60),
-                math.round(12  + grey * 20),
-                math.round(35  + grey * 80)
+                math.round(20 + grey * 60),
+                math.round(12 + grey * 20),
+                math.round(35 + grey * 80)
             )
         end
     end
 end
 
--- Poll until scan is done, then paint
 task.spawn(function()
     while not mapScanned do task.wait(0.1) end
     applyMapGrid()
 end)
 
--- Rescan button label (tap minimap header to rescan)
 local mmRescanBtn = Instance.new("TextButton")
 mmRescanBtn.Size             = UDim2.new(1, 0, 0, 14)
 mmRescanBtn.Position         = UDim2.new(0, 0, 0, 0)
 mmRescanBtn.BackgroundColor3 = Color3.fromRGB(20, 10, 35)
 mmRescanBtn.BorderSizePixel  = 0
-mmRescanBtn.Text             = "▣ MAP  [tap to rescan]"
+mmRescanBtn.Text             = "MAP [rescan]"
 mmRescanBtn.TextColor3       = SUBTEXT
 mmRescanBtn.TextSize         = 8
 mmRescanBtn.Font             = Enum.Font.GothamSemibold
@@ -478,20 +475,17 @@ mmRescanBtn.Parent           = mmClip
 mmRescanBtn.MouseButton1Click:Connect(function()
     mmRescanBtn.Text = "scanning..."
     task.spawn(function()
-        scanMap()
-        applyMapGrid()
-        mmRescanBtn.Text = "▣ MAP  [tap to rescan]"
+        scanMap(); applyMapGrid()
+        mmRescanBtn.Text = "MAP [rescan]"
     end)
 end)
 
--- ── Radar overlay layer (dots, rings, crosshair) ──
 local radarLayer = Instance.new("Frame")
 radarLayer.Size               = UDim2.new(1, 0, 1, 0)
 radarLayer.BackgroundTransparency = 1
 radarLayer.ZIndex             = 6
 radarLayer.Parent             = mmClip
 
--- Rings
 for _, pct in {0.33, 0.66, 1.0} do
     local rSize = MINIMAP_SIZE * pct
     local ring  = Instance.new("Frame")
@@ -502,13 +496,12 @@ for _, pct in {0.33, 0.66, 1.0} do
     ring.ZIndex           = 6
     ring.Parent           = radarLayer
     local rs = Instance.new("UIStroke", ring)
-    rs.Color       = Color3.fromRGB(50, 30, 80)
-    rs.Thickness   = 0.5
+    rs.Color        = Color3.fromRGB(50, 30, 80)
+    rs.Thickness    = 0.5
     rs.Transparency = 0.5
     Instance.new("UICorner", ring).CornerRadius = UDim.new(1, 0)
 end
 
--- Crosshair lines
 local function mmLine(vert)
     local l = Instance.new("Frame")
     l.BackgroundColor3 = Color3.fromRGB(50, 30, 80)
@@ -523,7 +516,6 @@ local function mmLine(vert)
 end
 mmLine(true); mmLine(false)
 
--- Self dot (always centre)
 local mmSelf = Instance.new("Frame")
 mmSelf.Size             = UDim2.new(0, 8, 0, 8)
 mmSelf.AnchorPoint      = Vector2.new(0.5, 0.5)
@@ -534,19 +526,17 @@ mmSelf.ZIndex           = 9
 mmSelf.Parent           = radarLayer
 Instance.new("UICorner", mmSelf).CornerRadius = UDim.new(1, 0)
 
--- Label below map
 local mmLabel = Instance.new("TextLabel")
 mmLabel.Size              = UDim2.new(1, 0, 0, 13)
 mmLabel.Position          = UDim2.new(0, 0, 1, 2)
 mmLabel.BackgroundTransparency = 1
-mmLabel.Text              = "RADAR  ·  " .. tostring(state.minimapRange) .. "st"
+mmLabel.Text              = "RADAR " .. tostring(state.minimapRange) .. "st"
 mmLabel.TextColor3        = SUBTEXT
 mmLabel.TextSize          = 8
 mmLabel.Font              = Enum.Font.GothamSemibold
 mmLabel.ZIndex            = 5
 mmLabel.Parent            = MinimapFrame
 
--- Enemy dot pool
 local mmDots = {}
 local function getMMDot(i)
     if mmDots[i] then return mmDots[i] end
@@ -660,11 +650,23 @@ LogoSub.Font           = Enum.Font.Gotham
 LogoSub.TextXAlignment = Enum.TextXAlignment.Left
 LogoSub.Parent         = TitleBar
 
+-- Key indicator in title bar
+local KeyIndicator = Instance.new("TextLabel")
+KeyIndicator.Size           = UDim2.new(0, 120, 1, 0)
+KeyIndicator.Position       = UDim2.new(0, 160, 0, 0)
+KeyIndicator.BackgroundTransparency = 1
+KeyIndicator.Text           = "KEY: " .. tostring(key):sub(1,8) .. "..."
+KeyIndicator.TextColor3     = GREEN
+KeyIndicator.TextSize       = 9
+KeyIndicator.Font           = Enum.Font.Gotham
+KeyIndicator.TextXAlignment = Enum.TextXAlignment.Left
+KeyIndicator.Parent         = TitleBar
+
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Size             = UDim2.new(0, 22, 0, 22)
 CloseBtn.Position         = UDim2.new(1, -30, 0.5, -11)
 CloseBtn.BackgroundColor3 = Color3.fromRGB(50,20,20)
-CloseBtn.Text             = "✕"
+CloseBtn.Text             = "X"
 CloseBtn.TextColor3       = RED
 CloseBtn.TextSize         = 11
 CloseBtn.Font             = Enum.Font.GothamBold
@@ -679,7 +681,7 @@ local MinBtn = Instance.new("TextButton")
 MinBtn.Size             = UDim2.new(0, 22, 0, 22)
 MinBtn.Position         = UDim2.new(1, -56, 0.5, -11)
 MinBtn.BackgroundColor3 = PURPLE_DARK
-MinBtn.Text             = "─"
+MinBtn.Text             = "-"
 MinBtn.TextColor3       = PURPLE
 MinBtn.TextSize         = 11
 MinBtn.Font             = Enum.Font.GothamBold
@@ -689,7 +691,7 @@ Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0, 4)
 
 local TabBarFrame = Instance.new("Frame")
 TabBarFrame.Size     = UDim2.new(1, -300, 1, 0)
-TabBarFrame.Position = UDim2.new(0, 170, 0, 0)
+TabBarFrame.Position = UDim2.new(0, 290, 0, 0)
 TabBarFrame.BackgroundTransparency = 1
 TabBarFrame.Parent   = TitleBar
 
@@ -700,7 +702,6 @@ TabBarLayout.Padding           = UDim.new(0, 2)
 TabBarLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 TabBarLayout.Parent            = TabBarFrame
 
--- Drag
 local dragging, dragStart, startPos = false, nil, nil
 TitleBar.InputBegan:Connect(function(inp)
     if inp.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -714,7 +715,7 @@ UserInputService.InputChanged:Connect(function(inp)
     if dragging and inp.UserInputType == Enum.UserInputType.MouseMovement then
         local d = inp.Position - dragStart
         Win.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset+d.X,
-                                  startPos.Y.Scale, startPos.Y.Offset+d.Y)
+            startPos.Y.Scale, startPos.Y.Offset+d.Y)
     end
 end)
 
@@ -828,7 +829,8 @@ end
 -- ══════════════════════════════════════════
 --  COMPONENT BUILDERS
 -- ══════════════════════════════════════════
-local leftOrder=0; local rightOrder=0
+local leftOrder=0
+local rightOrder=0
 
 local function SectionLabel(text, isRight)
     local f=Instance.new("Frame")
@@ -901,7 +903,8 @@ local function Slider(name, min, max, default, suffix, callback, isRight)
     valLbl.TextColor3=PURPLE; valLbl.TextSize=11; valLbl.Font=Enum.Font.GothamBold
     valLbl.TextXAlignment=Enum.TextXAlignment.Right; valLbl.Parent=card
     local track=Instance.new("Frame")
-    track.Size=UDim2.new(1,0,0,4); track.Position=UDim2.new(0,0,0,26)
+    track.Size=UDim2.new(1,0,0,4)
+    track.Position=UDim2.new(0,0,0,26)
     track.BackgroundColor3=Color3.fromRGB(35,25,55); track.BorderSizePixel=0
     track.Parent=card
     Instance.new("UICorner",track).CornerRadius=UDim.new(1,0)
@@ -1045,48 +1048,21 @@ addL(tCamlock, Dropdown("Camlock Body Part",
         state.camlockPart=v; state.aimPart=v; stickyTarget=nil
     end, false))
 
-addL(tCamlock, Toggle("Show FOV","",state.showFov,function(on)
-    state.showFov=on end, false))
+addL(tCamlock, Toggle("Show FOV","",state.showFov,function(on) state.showFov=on end, false))
+addL(tCamlock, Toggle("Use FOV","",state.useFov,function(on) state.useFov=on end, false))
+addL(tCamlock, Slider("Radius",10,400,state.aimFov,"px",function(v) state.aimFov=v end, false))
 
-addL(tCamlock, Toggle("Use FOV","",state.useFov,function(on)
-    state.useFov=on end, false))
-
-addL(tCamlock, Slider("Radius",10,400,state.aimFov,"px",function(v)
-    state.aimFov=v end, false))
-
--- ── RIGHT: Advanced + Keybind Mode ──────
 addR(tCamlock, SectionLabel("Advanced Settings", true))
+addR(tCamlock, Toggle("Use Advanced","Custom",state.useAdvanced,function(on) state.useAdvanced=on end, true))
+addR(tCamlock, Slider("Predict X",0,10,state.predictX,"",function(v) state.predictX=v end, true))
+addR(tCamlock, Slider("Predict Y",0,10,state.predictY,"",function(v) state.predictY=v end, true))
+addR(tCamlock, Toggle("Enable Smoothing","",state.smoothingOn,function(on) state.smoothingOn=on end, true))
+addR(tCamlock, Slider("Smoothing X",1,20,state.smoothX,"",function(v) state.smoothX=v end, true))
+addR(tCamlock, Slider("Smoothing Y",1,20,state.smoothY,"",function(v) state.smoothY=v end, true))
+addR(tCamlock, Dropdown("Style",{"Linear","Quadratic","Sine"},state.camlockStyle,function(v) state.camlockStyle=v end, true))
+addR(tCamlock, SectionLabel("Keybind and Mode", true))
+addR(tCamlock, KeybindPicker("Aimlock Key",state.camlockKeybind,function(key) state.camlockKeybind=key end, true))
 
-addR(tCamlock, Toggle("Use Advanced","Custom",state.useAdvanced,function(on)
-    state.useAdvanced=on end, true))
-
-addR(tCamlock, Slider("Predict X",0,10,state.predictX,"",function(v)
-    state.predictX=v end, true))
-
-addR(tCamlock, Slider("Predict Y",0,10,state.predictY,"",function(v)
-    state.predictY=v end, true))
-
-addR(tCamlock, Toggle("Enable Smoothing","",state.smoothingOn,function(on)
-    state.smoothingOn=on end, true))
-
-addR(tCamlock, Slider("Smoothing X",1,20,state.smoothX,"",function(v)
-    state.smoothX=v end, true))
-
-addR(tCamlock, Slider("Smoothing Y",1,20,state.smoothY,"",function(v)
-    state.smoothY=v end, true))
-
-addR(tCamlock, Dropdown("Style",{"Linear","Quadratic","Sine"},
-    state.camlockStyle, function(v) state.camlockStyle=v end, true))
-
-addR(tCamlock, SectionLabel("Keybind & Mode", true))
-
-addR(tCamlock, KeybindPicker("Aimlock Key",
-    state.camlockKeybind, function(key) state.camlockKeybind=key end, true))
-
--- ══════════════════════════════════════════
---  MODE SELECTOR  (Hold / Toggle / OnePress)
---  Displayed as three pill buttons side by side
--- ══════════════════════════════════════════
 local modeCard = Instance.new("Frame")
 modeCard.Size = UDim2.new(1,0,0,46)
 modeCard.BackgroundTransparency = 1
@@ -1135,14 +1111,12 @@ for i, modeName in MODES do
     mb.Parent           = modeRow
     Instance.new("UICorner", mb).CornerRadius = UDim.new(0, 4)
     mb.MouseButton1Click:Connect(function()
-        state.camlockMode = modeName
-        -- Legacy compat
-        state.camlockToggle = (modeName == "Toggle")
-        -- Reset all lock state on mode change
+        state.camlockMode    = modeName
+        state.camlockToggle  = (modeName == "Toggle")
         state.camlockEnabled = false
-        onePressActive  = false
-        onePressUsed    = false
-        stickyTarget    = nil
+        onePressActive       = false
+        onePressUsed         = false
+        stickyTarget         = nil
         refreshModeBtns()
     end)
     table.insert(modeBtns, mb)
@@ -1150,11 +1124,10 @@ end
 
 refreshModeBtns()
 
--- Mode hint labels
 local modeHints = {
-    Hold     = "Hold key → lock, release → unlock",
-    Toggle   = "Press key → lock on/off",
-    OnePress = "Press key → snap aim once instantly",
+    Hold     = "Hold key to lock, release to unlock",
+    Toggle   = "Press key to lock on/off",
+    OnePress = "Press key to snap aim once instantly",
 }
 local modeHintLbl = Instance.new("TextLabel")
 modeHintLbl.Size=UDim2.new(1,0,0,14)
@@ -1168,7 +1141,6 @@ modeHintLbl.Visible=false
 rightOrder+=1; modeHintLbl.LayoutOrder=rightOrder; modeHintLbl.Parent=RightScroll
 table.insert(tCamlock.rightItems, modeHintLbl)
 
--- Update hint when mode changes (patch into btn clicks above via Heartbeat)
 RunService.Heartbeat:Connect(function()
     modeHintLbl.Text = modeHints[state.camlockMode] or ""
 end)
@@ -1177,7 +1149,6 @@ end)
 --  VISUALS TAB
 -- ══════════════════════════════════════════
 addL(tVisuals, SectionLabel("ESP", false))
-
 addL(tVisuals, Toggle("ESP Master","",state.esp,function(on)
     state.esp=on
     if not on then
@@ -1213,7 +1184,7 @@ addL(tVisuals, Toggle("Chams","",state.chams,function(on)
 end, false))
 
 if not hasDrawing then
-    addL(tVisuals, TextLabel("⚠ Drawing API not available", false))
+    addL(tVisuals, TextLabel("Drawing API not available", false))
     addL(tVisuals, TextLabel("ESP requires executor with Drawing", false))
 end
 
@@ -1233,7 +1204,6 @@ addR(tVisuals, Toggle("No Shadows","",state.noShadows,function(on)
     state.noShadows=on; Lighting.GlobalShadows=not on
 end, true))
 
--- ESP Preview
 addR(tVisuals, SectionLabel("ESP Preview", true))
 
 local espPreviewFrame=Instance.new("Frame")
@@ -1296,8 +1266,8 @@ RunService.Heartbeat:Connect(function(dt)
     previewHpFill.Visible  = state.espHealth
     previewHpLabel.Visible = state.espHealth
     previewTracer.Visible  = state.espTracers
-    previewBoxStroke.Color   = state.espBoxes and PURPLE or Color3.fromRGB(40,40,55)
-    previewHeadStroke.Color  = state.espBoxes and PURPLE or Color3.fromRGB(40,40,55)
+    previewBoxStroke.Color  = state.espBoxes and PURPLE or Color3.fromRGB(40,40,55)
+    previewHeadStroke.Color = state.espBoxes and PURPLE or Color3.fromRGB(40,40,55)
     previewHpPct = previewHpPct + previewHpDir * dt * 0.08
     if previewHpPct<=0.1 then previewHpDir=1 end
     if previewHpPct>=1.0 then previewHpDir=-1 end
@@ -1313,7 +1283,6 @@ end)
 --  MOVEMENT TAB
 -- ══════════════════════════════════════════
 addL(tMovement, SectionLabel("Movement", false))
-
 addL(tMovement, Toggle("Fly","",state.flyEnabled,function(on)
     state.flyEnabled=on
     local hrp=getHRP(); local hum=getHum()
@@ -1367,7 +1336,7 @@ addL(tSettings, Toggle("Show Minimap","",state.minimapEnabled,function(on)
 end, false))
 addL(tSettings, Slider("Radar Range",50,1000,state.minimapRange,"st",function(v)
     state.minimapRange=v
-    mmLabel.Text="RADAR  ·  "..tostring(v).."st"
+    mmLabel.Text="RADAR "..tostring(v).."st"
 end, false))
 addL(tSettings, Toggle("Show Game Map","",state.showGameMap,function(on)
     state.showGameMap=on; mapLayer.Visible=on
@@ -1375,7 +1344,7 @@ end, false))
 
 local rescanBtn = Instance.new("TextButton")
 rescanBtn.Size=UDim2.new(1,0,0,28); rescanBtn.BackgroundColor3=PURPLE_DARK
-rescanBtn.BorderSizePixel=0; rescanBtn.Text="↺  Rescan Game Map"
+rescanBtn.BorderSizePixel=0; rescanBtn.Text="Rescan Game Map"
 rescanBtn.TextColor3=PURPLE; rescanBtn.TextSize=11; rescanBtn.Font=Enum.Font.GothamSemibold
 rescanBtn.Visible=false
 leftOrder+=1; rescanBtn.LayoutOrder=leftOrder; rescanBtn.Parent=LeftScroll
@@ -1384,7 +1353,7 @@ rescanBtn.MouseButton1Click:Connect(function()
     rescanBtn.Text="Scanning..."; rescanBtn.TextColor3=TEXT
     task.spawn(function()
         scanMap(); applyMapGrid()
-        rescanBtn.Text="↺  Rescan Game Map"; rescanBtn.TextColor3=PURPLE
+        rescanBtn.Text="Rescan Game Map"; rescanBtn.TextColor3=PURPLE
     end)
 end)
 table.insert(tSettings.leftItems, rescanBtn)
@@ -1394,6 +1363,11 @@ addR(tSettings, TextLabel("GUI Toggle:  [RShift]", true))
 addR(tSettings, TextLabel("Fly:         [toggle via UI]", true))
 addR(tSettings, TextLabel("Aimlock:     [see camlock tab]", true))
 
+-- Key info in settings
+addR(tSettings, SectionLabel("Key Info", true))
+addR(tSettings, TextLabel("Status: Verified", true))
+addR(tSettings, TextLabel("HWID locked to this device", true))
+
 -- ══════════════════════════════════════════
 --  CONFIG TAB
 -- ══════════════════════════════════════════
@@ -1401,38 +1375,36 @@ addL(tConfig, SectionLabel("Config", false))
 
 local saveRow=Instance.new("TextButton")
 saveRow.Size=UDim2.new(1,0,0,32); saveRow.BackgroundColor3=PURPLE_DARK
-saveRow.BorderSizePixel=0; saveRow.Text="💾  Save Config"
+saveRow.BorderSizePixel=0; saveRow.Text="Save Config"
 saveRow.TextColor3=PURPLE; saveRow.TextSize=12; saveRow.Font=Enum.Font.GothamSemibold
 saveRow.Visible=false; leftOrder+=1; saveRow.LayoutOrder=leftOrder; saveRow.Parent=LeftScroll
 Instance.new("UICorner",saveRow).CornerRadius=UDim.new(0,6)
 saveRow.MouseButton1Click:Connect(function()
-    saveConfig(); saveRow.Text="✔  Saved!"; saveRow.TextColor3=GREEN
-    task.delay(1.5,function() saveRow.Text="💾  Save Config"; saveRow.TextColor3=PURPLE end)
+    saveConfig(); saveRow.Text="Saved!"; saveRow.TextColor3=GREEN
+    task.delay(1.5,function() saveRow.Text="Save Config"; saveRow.TextColor3=PURPLE end)
 end)
 table.insert(tConfig.leftItems, saveRow)
 
 local loadRow=Instance.new("TextButton")
 loadRow.Size=UDim2.new(1,0,0,32); loadRow.BackgroundColor3=PURPLE_DARK
-loadRow.BorderSizePixel=0; loadRow.Text="📂  Load Config"
+loadRow.BorderSizePixel=0; loadRow.Text="Load Config"
 loadRow.TextColor3=PURPLE; loadRow.TextSize=12; loadRow.Font=Enum.Font.GothamSemibold
 loadRow.Visible=false; leftOrder+=1; loadRow.LayoutOrder=leftOrder; loadRow.Parent=LeftScroll
 Instance.new("UICorner",loadRow).CornerRadius=UDim.new(0,6)
 loadRow.MouseButton1Click:Connect(function()
-    loadConfig(); loadRow.Text="✔  Loaded!"; loadRow.TextColor3=GREEN
-    task.delay(1.5,function() loadRow.Text="📂  Load Config"; loadRow.TextColor3=PURPLE end)
+    loadConfig(); loadRow.Text="Loaded!"; loadRow.TextColor3=GREEN
+    task.delay(1.5,function() loadRow.Text="Load Config"; loadRow.TextColor3=PURPLE end)
 end)
 table.insert(tConfig.leftItems, loadRow)
 
 addL(tConfig, TextLabel("Config auto-saves on close.", false))
-addL(tConfig, TextLabel("File: venom_config.json",    false))
+addL(tConfig, TextLabel("File: venom_config.json", false))
 addR(tConfig, SectionLabel("Auto Save", true))
 addR(tConfig, Toggle("Auto Save on Toggle","",true,function(on) end, true))
 
 -- ══════════════════════════════════════════
 --  RUNTIME LOOPS
 -- ══════════════════════════════════════════
-
--- Fly
 RunService.RenderStepped:Connect(function()
     if not state.flyEnabled or not bv or not bg then return end
     local cam=workspace.CurrentCamera; local dir=Vector3.zero
@@ -1445,7 +1417,6 @@ RunService.RenderStepped:Connect(function()
     bv.Velocity=dir*60; bg.CFrame=cam.CFrame
 end)
 
--- Noclip
 RunService.Stepped:Connect(function()
     if not state.noclip then return end
     local char=Player.Character; if not char then return end
@@ -1454,13 +1425,11 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- Infinite jump
 UserInputService.JumpRequest:Connect(function()
     if not state.infiniteJump then return end
     local hum=getHum(); if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
 end)
 
--- Speed / God / JumpPower
 RunService.Heartbeat:Connect(function()
     local hum=getHum(); if not hum then return end
     if state.godMode then hum.Health=hum.MaxHealth end
@@ -1468,7 +1437,6 @@ RunService.Heartbeat:Connect(function()
     hum.JumpPower=state.jumpPower
 end)
 
--- Anti-AFK
 Player.Idled:Connect(function()
     if not state.antiAfk then return end
     VirtualUser:Button2Down(Vector2.zero, workspace.CurrentCamera.CFrame)
@@ -1477,7 +1445,7 @@ Player.Idled:Connect(function()
 end)
 
 -- ══════════════════════════════════════════
---  KEYBIND HANDLING  (3-mode)
+--  KEYBIND HANDLING
 -- ══════════════════════════════════════════
 local camlockToggleState = false
 
@@ -1487,21 +1455,17 @@ UserInputService.InputBegan:Connect(function(inp, gpe)
     if ok and kc and inp.KeyCode == kc then
         if state.camlockMode == "Hold" then
             state.camlockEnabled = true
-
         elseif state.camlockMode == "Toggle" then
             camlockToggleState   = not camlockToggleState
             state.camlockEnabled = camlockToggleState
             if not camlockToggleState then stickyTarget=nil end
-
         elseif state.camlockMode == "OnePress" then
-            -- OnePress: flag it; the camlock loop will fire one snap then clear
             if not onePressUsed then
                 onePressActive = true
-                onePressUsed   = true   -- consumed until key released
+                onePressUsed   = true
             end
         end
     end
-
     if inp.KeyCode == Enum.KeyCode.RightShift then
         Win.Visible = not Win.Visible
     end
@@ -1514,7 +1478,7 @@ UserInputService.InputEnded:Connect(function(inp)
             state.camlockEnabled = false
             stickyTarget         = nil
         elseif state.camlockMode == "OnePress" then
-            onePressUsed = false   -- allow next press
+            onePressUsed = false
         end
     end
 end)
@@ -1525,10 +1489,8 @@ end)
 RunService.RenderStepped:Connect(function()
     if not state.aimEnabled then return end
 
-    -- ── OnePress mode ──────────────────────
     if state.camlockMode == "OnePress" then
         if not onePressActive then return end
-        -- Fire exactly one frame of snap
         local target = getClosestToMouse(state.camlockPart)
         if target and target.Character then
             local part = target.Character:FindFirstChild(state.camlockPart)
@@ -1550,14 +1512,12 @@ RunService.RenderStepped:Connect(function()
                 cam.CFrame = CFrame.lookAt(origin, tPos)
             end
         end
-        onePressActive = false   -- consumed — wait for next key press
+        onePressActive = false
         return
     end
 
-    -- ── Hold / Toggle modes ────────────────
     if not state.camlockEnabled then return end
 
-    -- Validate sticky target
     if stickyTarget then
         local char = stickyTarget.Character
         local hum  = char and char:FindFirstChildOfClass("Humanoid")
@@ -1578,7 +1538,6 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    -- Acquire target
     if not stickyTarget then
         stickyTarget = getClosestToMouse(state.camlockPart)
     elseif not state.stickyAim then
@@ -1649,16 +1608,13 @@ RunService.RenderStepped:Connect(function()
     local selfHRP = getHRP()
     if not selfHRP then return end
 
-    local selfPos    = selfHRP.Position
-    local cam        = workspace.CurrentCamera
-    local _,camY,_   = cam.CFrame:ToEulerAnglesYXZ()
+    local selfPos  = selfHRP.Position
+    local cam      = workspace.CurrentCamera
+    local _,camY,_ = cam.CFrame:ToEulerAnglesYXZ()
 
-    -- Scroll map layer so self is always centred
-    -- Map layer covers world bounds; we translate so the tile under selfPos is at centre
     if mapScanned then
         local normX = (selfPos.X - mapMinX) / math.max(mapMaxX - mapMinX, 1)
         local normZ = (selfPos.Z - mapMinZ) / math.max(mapMaxZ - mapMinZ, 1)
-        -- Offset the map so our position is centred
         local offX  = (0.5 - normX) * MINIMAP_SIZE
         local offZ  = (0.5 - normZ) * MINIMAP_SIZE
         mapLayer.Position = UDim2.new(0, offX, 0, offZ)
@@ -1720,8 +1676,5 @@ game:BindToClose(function() saveConfig(); cleanupAllESP() end)
 -- ══════════════════════════════════════════
 activateTab(tCamlock)
 
-print("[Venom.lol v1.6] Loaded ✓")
-if not hasDrawing then
-    print("[Venom] WARNING: Drawing API not found — ESP needs an executor with Drawing.new()")
-end
+print("[Venom.lol v1.6] Loaded")
 print("Mode: "..state.camlockMode.." | Key: "..state.camlockKeybind.." | RShift = toggle GUI")
