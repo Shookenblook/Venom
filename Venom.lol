@@ -101,7 +101,7 @@ else
     statusLbl.Text       = msg[1]
     statusLbl.TextColor3 = Color3.fromRGB(200, 50, 50)
     idLbl.Text           = msg[2]
-    subLbl.Text          = "discord.gg/yourserver"
+    subLbl.Text          = "discord.gg/79fq2yhvd7"
     return  -- stop script here, nothing loads
 end
 
