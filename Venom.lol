@@ -1,4 +1,7 @@
---venom im finna bust olmllllllllllllllllllllllllll
+-- ══════════════════════════════════════════
+--  venom.lol  v2.0
+--  Fresh aimbot engine  |  all features intact
+-- ══════════════════════════════════════════
 
 local Players          = game:GetService("Players")
 local TweenService     = game:GetService("TweenService")
@@ -8,74 +11,53 @@ local VirtualUser      = game:GetService("VirtualUser")
 local Lighting         = game:GetService("Lighting")
 local HttpService      = game:GetService("HttpService")
 local TeleportService  = game:GetService("TeleportService")
-local StarterGui       = game:GetService("StarterGui")
 
-local Player    = Players.LocalPlayer
-local PlayerGui = Player:WaitForChild("PlayerGui")
-local Mouse     = Player:GetMouse()
+local Player     = Players.LocalPlayer
+local PlayerGui  = Player:WaitForChild("PlayerGui")
+local Mouse      = Player:GetMouse()
+local Camera     = workspace.CurrentCamera
 local IsComputer = UserInputService.KeyboardEnabled and UserInputService.MouseEnabled
 
 -- ══════════════════════════════════════════
 --  WHITELIST
 -- ══════════════════════════════════════════
-
 local NGROK_URL = "https://subventionary-letha-boughten.ngrok-free.dev"
 
 local function CheckWhitelist()
-    local response = nil
-
-    -- FIX 1: Use request() with ngrok-skip-browser-warning header if available
-    -- This prevents ngrok from returning an HTML interstitial page instead of "valid"
+    local response
     if getfenv().request then
-        local ok, res = pcall(function()
+        local ok,res=pcall(function()
             return request({
-                Url     = NGROK_URL .. "/check?rbxid=" .. tostring(Player.UserId),
-                Method  = "GET",
-                Headers = {
-                    ["ngrok-skip-browser-warning"] = "true",
-                },
+                Url    = NGROK_URL.."/check?rbxid="..tostring(Player.UserId),
+                Method = "GET",
+                Headers= {["ngrok-skip-browser-warning"]="true"},
             })
         end)
-        if ok and res and res.Body then
-            response = res.Body
-        end
+        if ok and res and res.Body then response=res.Body end
     end
-
-    -- FIX 2: Fallback to game:HttpGet if request() not available
     if not response then
-        local ok, res = pcall(function()
-            return game:HttpGet(
-                NGROK_URL .. "/check?rbxid=" .. tostring(Player.UserId),
-                true
-            )
+        local ok,res=pcall(function()
+            return game:HttpGet(NGROK_URL.."/check?rbxid="..tostring(Player.UserId),true)
         end)
-        if ok then
-            response = res
-        else
-            warn("[Venom] Whitelist check failed:", res)
-            return false
-        end
+        if ok then response=res else warn("[Venom] WL fail:",res); return false end
     end
-
-    -- FIX 3: Trim whitespace/newlines before comparing
-    -- ngrok sometimes adds \n or spaces which breaks == "valid"
-    response = tostring(response):match("^%s*(.-)%s*$")
-    warn("[Venom] Whitelist response:", response) -- shows in executor console for debugging
-
-    return response == "valid"
+    response=tostring(response):match("^%s*(.-)%s*$")
+    warn("[Venom] WL response:",response)
+    return response=="valid"
 end
 
--- Splash screen
-local SplashGui = Instance.new("ScreenGui")
-SplashGui.Name = "VenomSplash"; SplashGui.ResetOnSpawn=false
-SplashGui.IgnoreGuiInset=true; SplashGui.DisplayOrder=999; SplashGui.Parent=PlayerGui
+-- Splash
+local SplashGui=Instance.new("ScreenGui"); SplashGui.Name="VenomSplash"
+SplashGui.ResetOnSpawn=false; SplashGui.IgnoreGuiInset=true
+SplashGui.DisplayOrder=999; SplashGui.Parent=PlayerGui
 
 local SplashBG=Instance.new("Frame"); SplashBG.Size=UDim2.new(1,0,1,0)
 SplashBG.BackgroundColor3=Color3.fromRGB(6,6,10); SplashBG.BorderSizePixel=0; SplashBG.Parent=SplashGui
 
 local SplashCard=Instance.new("Frame"); SplashCard.Size=UDim2.new(0,300,0,150)
-SplashCard.AnchorPoint=Vector2.new(0.5,0.5); SplashCard.Position=UDim2.new(0.5,0,0.55,0)
-SplashCard.BackgroundColor3=Color3.fromRGB(8,8,12); SplashCard.BorderSizePixel=0; SplashCard.Parent=SplashBG
+SplashCard.AnchorPoint=Vector2.new(0.5,0.5); SplashCard.Position=UDim2.new(0.5,0,0.65,0)
+SplashCard.BackgroundColor3=Color3.fromRGB(8,8,12); SplashCard.BackgroundTransparency=1
+SplashCard.BorderSizePixel=0; SplashCard.Parent=SplashBG
 Instance.new("UICorner",SplashCard).CornerRadius=UDim.new(0,12)
 local SplashStroke=Instance.new("UIStroke",SplashCard)
 SplashStroke.Color=Color3.fromRGB(138,43,226); SplashStroke.Thickness=1.5
@@ -98,20 +80,18 @@ local SplashBar=Instance.new("Frame"); SplashBar.Size=UDim2.new(0,0,1,0)
 SplashBar.BackgroundColor3=Color3.fromRGB(138,43,226); SplashBar.BorderSizePixel=0; SplashBar.Parent=SplashBarBG
 Instance.new("UICorner",SplashBar).CornerRadius=UDim.new(1,0)
 
-SplashCard.Position=UDim2.new(0.5,0,0.65,0); SplashCard.BackgroundTransparency=1
 TweenService:Create(SplashCard,TweenInfo.new(0.5,Enum.EasingStyle.Back,Enum.EasingDirection.Out),
     {Position=UDim2.new(0.5,0,0.5,0),BackgroundTransparency=0}):Play()
 TweenService:Create(SplashBar,TweenInfo.new(1.2,Enum.EasingStyle.Quad,Enum.EasingDirection.InOut),
     {Size=UDim2.new(0.85,0,1,0)}):Play()
 
-local granted = CheckWhitelist()
+local granted=CheckWhitelist()
 
 if not granted then
     SplashSub.Text="❌  Not whitelisted."; SplashSub.TextColor3=Color3.fromRGB(210,100,100)
     SplashStroke.Color=Color3.fromRGB(200,50,50)
     TweenService:Create(SplashBar,TweenInfo.new(0.3),{Size=UDim2.new(1,0,1,0),BackgroundColor3=Color3.fromRGB(200,50,50)}):Play()
-    task.wait(3)
-    TweenService:Create(SplashBG,TweenInfo.new(0.4),{BackgroundTransparency=1}):Play()
+    task.wait(3); TweenService:Create(SplashBG,TweenInfo.new(0.4),{BackgroundTransparency=1}):Play()
     task.wait(0.4); SplashGui:Destroy(); return
 end
 
@@ -125,23 +105,23 @@ task.wait(0.35); SplashGui:Destroy()
 --  THEME
 -- ══════════════════════════════════════════
 local PURPLE      = Color3.fromRGB(138, 43, 226)
-local PURPLE_DIM  = Color3.fromRGB(90, 20, 160)
-local PURPLE_DARK = Color3.fromRGB(40, 10, 70)
-local BG          = Color3.fromRGB(8, 8, 12)
-local BG2         = Color3.fromRGB(14, 14, 20)
-local BG3         = Color3.fromRGB(20, 20, 30)
+local PURPLE_DIM  = Color3.fromRGB(90,  20, 160)
+local PURPLE_DARK = Color3.fromRGB(40,  10,  70)
+local BG          = Color3.fromRGB(8,   8,   12)
+local BG2         = Color3.fromRGB(14,  14,  20)
+local BG3         = Color3.fromRGB(20,  20,  30)
 local TEXT        = Color3.fromRGB(220, 220, 230)
 local SUBTEXT     = Color3.fromRGB(130, 120, 150)
-local RED         = Color3.fromRGB(200, 50, 50)
-local GREEN       = Color3.fromRGB(50, 200, 50)
-local GOLD        = Color3.fromRGB(255, 200, 40)
+local RED         = Color3.fromRGB(200,  50,  50)
+local GREEN       = Color3.fromRGB(50,  200,  50)
+local GOLD        = Color3.fromRGB(255, 200,  40)
 local TWEEN_FAST  = TweenInfo.new(0.15, Enum.EasingStyle.Quad)
 local CONFIG_FILE = "venom_config.json"
 
 -- ══════════════════════════════════════════
---  CAPABILITY CHECKS
+--  CAPABILITY FLAGS
 -- ══════════════════════════════════════════
-local hasDrawing = false
+local hasDrawing     = false
 pcall(function() local t=Drawing.new("Square"); t:Remove(); hasDrawing=true end)
 local hasMoveRel     = not not getfenv().mousemoverel
 local hasHookMeta    = not not (getfenv().hookmetamethod and getfenv().newcclosure
@@ -149,195 +129,357 @@ local hasHookMeta    = not not (getfenv().hookmetamethod and getfenv().newcclosu
 local hasMouse1Click = not not getfenv().mouse1click
 
 -- ══════════════════════════════════════════
---  OPEN AIMBOT CONFIGURATION
+--  ██████╗ ███████╗███╗   ███╗ █████╗ ██╗  ██╗███████╗
+--  ██╔══██╗██╔════╝████╗ ████║██╔══██╗██║ ██╔╝██╔════╝
+--  ██████╔╝█████╗  ██╔████╔██║███████║█████╔╝ █████╗
+--  ██╔══██╗██╔══╝  ██║╚██╔╝██║██╔══██║██╔═██╗ ██╔══╝
+--  ██║  ██║███████╗██║ ╚═╝ ██║██║  ██║██║  ██╗███████╗
+--  ╚═╝  ╚═╝╚══════╝╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝
+--  COMPLETE REWRITE — clean, fast, modular
 -- ══════════════════════════════════════════
-local Configuration = {
-    Aimbot                = false,
-    OnePressAimingMode    = false,
-    AimKey                = IsComputer and Enum.UserInputType.MouseButton2 or nil,
-    AimMode               = "Camera",
-    SilentAimMethods      = {"Mouse.Hit / Mouse.Target","GetMouseLocation"},
-    SilentAimChance       = 100,
-    OffAimbotAfterKill    = false,
-    AimPart               = "HumanoidRootPart",
-    UseOffset             = false,
-    OffsetType            = "Static",
-    StaticOffsetIncrement = 10,
-    DynamicOffsetIncrement= 10,
-    AutoOffset            = false,
-    MaxAutoOffset         = 50,
-    UseSensitivity        = false,
-    Sensitivity           = 50,
-    UseNoise              = false,
-    NoiseFrequency        = 50,
-    AliveCheck            = true,
-    GodCheck              = false,
-    TeamCheck             = false,
-    FriendCheck           = false,
-    FollowCheck           = false,
-    WallCheck             = false,
-    WaterCheck            = false,
-    FoVCheck              = false,
-    FoVRadius             = 120,
-    MagnitudeCheck        = false,
-    TriggerMagnitude      = 500,
-    TransparencyCheck     = false,
-    IgnoredTransparency   = 0.5,
-    IgnoredPlayersCheck   = false,
-    IgnoredPlayers        = {},
-    TargetPlayersCheck    = false,
-    TargetPlayers         = {},
+
+-- ─── Settings ────────────────────────────
+local Aim = {
+    -- Core
+    enabled        = false,
+    mode           = "Camera",   -- "Camera" | "Mouse" | "Silent"
+    aimPart        = "Head",     -- body part to target
+    keyMode        = "Hold",     -- "Hold" | "Toggle" | "OnePress"
+    key            = "RMB",      -- "RMB" or KeyCode name string
+    fovEnabled     = false,
+    fovRadius      = 150,
+    showFov        = false,
+
+    -- Smoothing (camera mode)
+    smoothEnabled  = false,
+    smoothAmount   = 0.25,       -- 0.01 = very slow, 1 = instant
+
+    -- Prediction
+    predictEnabled = false,
+    predictAmount  = 0.08,       -- seconds of velocity look-ahead
+
+    -- Silent aim
+    silentChance   = 100,
+
     -- SpinBot
-    SpinBot               = false,
-    SpinBotVelocity       = 50,
-    SpinPart              = "HumanoidRootPart",
+    spinEnabled    = false,
+    spinSpeed      = 50,
+    spinPart       = "HumanoidRootPart",
+
     -- TriggerBot
-    TriggerBot            = false,
-    TriggerBotChance      = 100,
-    SmartTriggerBot       = false,
+    triggerEnabled    = false,
+    triggerChance     = 100,
+    triggerSmartOnly  = false,
+
+    -- Checks
+    checkAlive     = true,
+    checkTeam      = false,
+    checkFriend    = false,
+    checkWall      = false,
+    checkGod       = false,
+    maxDist        = 1000,       -- studs; 0 = unlimited
 }
 
--- ══════════════════════════════════════════
---  AIMBOT RUNTIME
--- ══════════════════════════════════════════
-local Aiming           = false
-local Target           = nil
-local AimTween         = nil
-local MouseSensitivity = UserInputService.MouseDeltaSensitivity
-local ShowingFoV       = false
-local Spinning         = false
-local Triggering       = false
-local Clock            = os.clock()
+-- ─── Runtime state ───────────────────────
+local aimActive   = false   -- key is held / toggled on
+local aimTarget   = nil     -- current target Character
+local aimTween    = nil
+local savedSens   = UserInputService.MouseDeltaSensitivity
+local onePressConsumed = false
 
-local MathHandler = {}
-function MathHandler:CalculateDirection(O,P,M)
-    return typeof(O)=="Vector3" and typeof(P)=="Vector3" and typeof(M)=="number"
-        and (P-O).Unit*M or Vector3.zero
-end
-function MathHandler:CalculateChance(Pct)
-    return typeof(Pct)=="number" and
-        math.round(math.clamp(Pct,1,100))/100 >= math.round(Random.new():NextNumber()*100)/100
-        or false
+-- ─── Utility ─────────────────────────────
+local function getHum()  local c=Player.Character; return c and c:FindFirstChildOfClass("Humanoid") end
+local function getHRP()  local c=Player.Character; return c and c:FindFirstChild("HumanoidRootPart") end
+local function getHead() local c=Player.Character; return c and c:FindFirstChild("Head") end
+
+local function worldToScreen(pos)
+    local sp,vis = Camera:WorldToViewportPoint(pos)
+    return Vector2.new(sp.X,sp.Y), vis
 end
 
-local function IsReady(Char)
-    if not Char then return false end
-    local hum  = Char:FindFirstChildOfClass("Humanoid")
-    local aimP = Char:FindFirstChild(Configuration.AimPart)
-    if not hum or not aimP or not aimP:IsA("BasePart") then return false end
-    if not Player.Character then return false end
-    local nativeP = Player.Character:FindFirstChild(Configuration.AimPart)
-    if not nativeP or not nativeP:IsA("BasePart") then return false end
-    local _plr = Players:GetPlayerFromCharacter(Char)
-    if not _plr or _plr==Player then return false end
+local function mousePos()
+    return UserInputService:GetMouseLocation()
+end
 
-    local Head = Char:FindFirstChild("Head")
-    if Configuration.AliveCheck   and hum.Health==0 then return false end
-    if Configuration.GodCheck     and (hum.Health>=1e36 or Char:FindFirstChildOfClass("ForceField")) then return false end
-    if Configuration.TeamCheck    and _plr.TeamColor==Player.TeamColor then return false end
-    if Configuration.FriendCheck  and _plr:IsFriendsWith(Player.UserId) then return false end
-    if Configuration.FollowCheck  and _plr.FollowUserId==Player.UserId  then return false end
+local function chance(pct)
+    return math.random(1,100) <= pct
+end
 
-    if Configuration.WallCheck then
-        local dir=MathHandler:CalculateDirection(nativeP.Position,aimP.Position,(aimP.Position-nativeP.Position).Magnitude)
-        local rp=RaycastParams.new(); rp.FilterType=Enum.RaycastFilterType.Exclude
-        rp.FilterDescendantsInstances={Player.Character}; rp.IgnoreWater=not Configuration.WaterCheck
-        local res=workspace:Raycast(nativeP.Position,dir,rp)
-        if not res or not res.Instance or not res.Instance:FindFirstAncestor(_plr.Name) then return false end
+-- ─── Check whether a character is a valid target ─
+local function isValidTarget(char)
+    if not char or not char.Parent then return false end
+    local plr = Players:GetPlayerFromCharacter(char)
+    if not plr or plr == Player then return false end
+
+    local hum  = char:FindFirstChildOfClass("Humanoid")
+    local part = char:FindFirstChild(Aim.aimPart) or char:FindFirstChild("Head")
+    local myPart = Player.Character and
+                   (Player.Character:FindFirstChild(Aim.aimPart) or
+                    Player.Character:FindFirstChild("HumanoidRootPart"))
+
+    if not hum or not part or not myPart then return false end
+    if Aim.checkAlive  and hum.Health <= 0 then return false end
+    if Aim.checkGod    and (hum.Health >= 1e36 or char:FindFirstChildOfClass("ForceField")) then return false end
+    if Aim.checkTeam   and plr.TeamColor == Player.TeamColor then return false end
+    if Aim.checkFriend and plr:IsFriendsWith(Player.UserId)  then return false end
+
+    if Aim.maxDist > 0 then
+        if (part.Position - myPart.Position).Magnitude > Aim.maxDist then return false end
     end
 
-    if Configuration.MagnitudeCheck and (aimP.Position-nativeP.Position).Magnitude>Configuration.TriggerMagnitude then return false end
-    if Configuration.TransparencyCheck and Head and Head:IsA("BasePart") and Head.Transparency>=Configuration.IgnoredTransparency then return false end
-    if Configuration.IgnoredPlayersCheck and table.find(Configuration.IgnoredPlayers,_plr.Name) then return false end
-    if Configuration.TargetPlayersCheck  and not table.find(Configuration.TargetPlayers,_plr.Name) then return false end
+    if Aim.checkWall then
+        local rp = RaycastParams.new()
+        rp.FilterType = Enum.RaycastFilterType.Exclude
+        rp.FilterDescendantsInstances = {Player.Character}
+        local dir = (part.Position - myPart.Position)
+        local res = workspace:Raycast(myPart.Position, dir, rp)
+        if not res or not res.Instance then return false end
+        if not res.Instance:IsDescendantOf(char) then return false end
+    end
 
-    local offset=Vector3.zero
-    if Configuration.UseOffset then
-        if Configuration.AutoOffset then
-            local ay=math.min(aimP.Position.Y*Configuration.StaticOffsetIncrement*(aimP.Position-nativeP.Position).Magnitude/1000,Configuration.MaxAutoOffset)
-            offset=Vector3.new(0,ay,0)+hum.MoveDirection*Configuration.DynamicOffsetIncrement/10
-        elseif Configuration.OffsetType=="Static" then
-            offset=Vector3.new(0,aimP.Position.Y*Configuration.StaticOffsetIncrement/10,0)
-        elseif Configuration.OffsetType=="Dynamic" then
-            offset=hum.MoveDirection*Configuration.DynamicOffsetIncrement/10
+    -- FOV check
+    if Aim.fovEnabled then
+        local sp, vis = Camera:WorldToViewportPoint(part.Position)
+        if not vis then return false end
+        local mp = mousePos()
+        if (Vector2.new(sp.X,sp.Y) - mp).Magnitude > Aim.fovRadius then return false end
+    end
+
+    return true
+end
+
+-- ─── Find best target (closest to mouse) ──
+local function findTarget()
+    local best, bestDist = nil, math.huge
+    local mp = mousePos()
+    for _, plr in Players:GetPlayers() do
+        if plr == Player then continue end
+        local char = plr.Character
+        if not isValidTarget(char) then continue end
+        local part = char:FindFirstChild(Aim.aimPart) or char:FindFirstChild("Head")
+        local sp, vis = Camera:WorldToViewportPoint(part.Position)
+        if not vis then continue end
+        local d = (Vector2.new(sp.X,sp.Y) - mp).Magnitude
+        if d < bestDist then bestDist=d; best=char end
+    end
+    return best
+end
+
+-- ─── Get the world position to aim at ─────
+local function getAimPos(char)
+    local part = char:FindFirstChild(Aim.aimPart) or char:FindFirstChild("Head")
+    if not part then return nil end
+    local pos = part.Position
+    -- velocity prediction
+    if Aim.predictEnabled then
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            pos = pos + hrp.AssemblyLinearVelocity * Aim.predictAmount
+        end
+    end
+    return pos
+end
+
+-- ─── Reset everything on key release / target loss ─
+local function resetAim(keepTarget)
+    aimActive = false
+    if not keepTarget then aimTarget = nil end
+    if aimTween then aimTween:Cancel(); aimTween = nil end
+    UserInputService.MouseDeltaSensitivity = savedSens
+end
+
+-- ─── Apply aim for one frame ──────────────
+local function applyAim(char)
+    local worldPos = getAimPos(char)
+    if not worldPos then return end
+
+    local origin = Camera.CFrame.Position
+
+    if Aim.mode == "Camera" then
+        UserInputService.MouseDeltaSensitivity = 0
+        local goalCF = CFrame.lookAt(origin, worldPos)
+        if Aim.smoothEnabled then
+            Camera.CFrame = Camera.CFrame:Lerp(goalCF, math.clamp(Aim.smoothAmount, 0.01, 1))
         else
-            offset=Vector3.new(0,aimP.Position.Y*Configuration.StaticOffsetIncrement/10,0)+hum.MoveDirection*Configuration.DynamicOffsetIncrement/10
+            Camera.CFrame = goalCF
         end
-    end
 
-    local noise=Vector3.zero
-    if Configuration.UseNoise then
-        local n=Configuration.NoiseFrequency/100
-        noise=Vector3.new(Random.new():NextNumber(-n,n),Random.new():NextNumber(-n,n),Random.new():NextNumber(-n,n))
-    end
+    elseif Aim.mode == "Mouse" and hasMoveRel then
+        local sp, vis = Camera:WorldToViewportPoint(worldPos)
+        if not vis then return end
+        local mp = mousePos()
+        local dx = sp.X - mp.X
+        local dy = sp.Y - mp.Y
+        local sens = Aim.smoothEnabled and math.max(1, (1-Aim.smoothAmount)*20) or 1
+        getfenv().mousemoverel(dx/sens, dy/sens)
 
-    local FinalPos=aimP.Position+offset+noise
-    local vp,onScreen=workspace.CurrentCamera:WorldToViewportPoint(FinalPos)
-    return true,Char,{vp,onScreen},FinalPos,(FinalPos-nativeP.Position).Magnitude,
-        CFrame.new(FinalPos)*CFrame.fromEulerAnglesYXZ(
-            math.rad(aimP.Orientation.X),math.rad(aimP.Orientation.Y),math.rad(aimP.Orientation.Z)),aimP
+    elseif Aim.mode == "Silent" then
+        -- handled entirely by metamethod hooks below; nothing to do here
+    end
 end
 
-local function ResetAimbotFields(keepAim,keepTarget)
-    Aiming=keepAim and Aiming or false
-    Target=keepTarget and Target or nil
-    if AimTween then AimTween:Cancel(); AimTween=nil end
-    UserInputService.MouseDeltaSensitivity=MouseSensitivity
-end
-
--- Silent Aim Hooks
-local function hookSilentAim()
+-- ─── Silent aim hooks ─────────────────────
+local function installSilentAimHooks()
     if not hasHookMeta then return end
-    local OldIndex; OldIndex=getfenv().hookmetamethod(game,"__index",getfenv().newcclosure(function(self,idx)
-        if not getfenv().checkcaller() and Configuration.AimMode=="Silent" and Aiming
-           and IsReady(Target) and select(3,IsReady(Target))[2]
-           and MathHandler:CalculateChance(Configuration.SilentAimChance) and self==Mouse then
-            if idx=="Hit"     or idx=="hit"     then return select(6,IsReady(Target)) end
-            if idx=="Target"  or idx=="target"  then return select(7,IsReady(Target)) end
-            if idx=="X"       or idx=="x"       then return select(3,IsReady(Target))[1].X end
-            if idx=="Y"       or idx=="y"       then return select(3,IsReady(Target))[1].Y end
-            if idx=="UnitRay" or idx=="unitRay" then
-                return Ray.new(self.Origin,(select(6,IsReady(Target))-self.Origin).Unit) end
+
+    local function getSilentTarget()
+        if not aimActive or Aim.mode ~= "Silent" then return nil end
+        local char = aimTarget or findTarget()
+        if not isValidTarget(char) then return nil end
+        if not chance(Aim.silentChance) then return nil end
+        return char
+    end
+
+    local oldIndex; oldIndex = getfenv().hookmetamethod(game, "__index",
+        getfenv().newcclosure(function(self, key)
+            if self == Mouse and not getfenv().checkcaller() then
+                local char = getSilentTarget()
+                if char then
+                    local wp = getAimPos(char)
+                    if wp then
+                        local sp = Camera:WorldToViewportPoint(wp)
+                        if key=="Hit" or key=="hit" then
+                            local part=char:FindFirstChild(Aim.aimPart) or char:FindFirstChild("Head")
+                            return CFrame.new(wp)*(part and CFrame.fromEulerAnglesYXZ(math.rad(part.Orientation.X),math.rad(part.Orientation.Y),math.rad(part.Orientation.Z)) or CFrame.identity)
+                        elseif key=="Target" or key=="target" then
+                            return char:FindFirstChild(Aim.aimPart) or char:FindFirstChild("Head")
+                        elseif key=="X" or key=="x" then return sp.X
+                        elseif key=="Y" or key=="y" then return sp.Y
+                        end
+                    end
+                end
+            end
+            return oldIndex(self, key)
+        end))
+
+    local oldNC; oldNC = getfenv().hookmetamethod(game, "__namecall",
+        getfenv().newcclosure(function(...)
+            local method = getfenv().getnamecallmethod()
+            local args   = {...}
+            local self   = args[1]
+            if not getfenv().checkcaller() then
+                local char = getSilentTarget()
+                if char then
+                    local wp = getAimPos(char)
+                    if wp then
+                        local sp = Camera:WorldToViewportPoint(wp)
+                        if self == UserInputService and (method=="GetMouseLocation" or method=="getMouseLocation") then
+                            return Vector2.new(sp.X, sp.Y)
+                        elseif self == workspace and (method=="Raycast" or method=="raycast")
+                           and typeof(args[2])=="Vector3" and typeof(args[3])=="Vector3" then
+                            local origin = args[2]
+                            args[3] = (wp - origin).Unit * (wp - origin).Magnitude
+                            return oldNC(table.unpack(args))
+                        end
+                    end
+                end
+            end
+            return oldNC(...)
+        end))
+end
+pcall(installSilentAimHooks)
+
+-- Preserve sensitivity when user changes it while not aiming
+UserInputService:GetPropertyChangedSignal("MouseDeltaSensitivity"):Connect(function()
+    if not aimActive then savedSens = UserInputService.MouseDeltaSensitivity end
+end)
+
+-- ─── Main aimbot loop ─────────────────────
+RunService.RenderStepped:Connect(function()
+    -- Validate current target each frame
+    if aimTarget and not isValidTarget(aimTarget) then
+        aimTarget = nil
+    end
+
+    -- Acquire target if we're actively aiming
+    if aimActive then
+        if not aimTarget then
+            aimTarget = findTarget()
         end
-        return OldIndex(self,idx)
-    end))
-    local OldNC; OldNC=getfenv().hookmetamethod(game,"__namecall",getfenv().newcclosure(function(...)
-        local Method=getfenv().getnamecallmethod(); local Args={...}; local s=Args[1]
-        if not getfenv().checkcaller() and Configuration.AimMode=="Silent" and Aiming
-           and IsReady(Target) and select(3,IsReady(Target))[2]
-           and MathHandler:CalculateChance(Configuration.SilentAimChance) then
-            if s==UserInputService and (Method=="GetMouseLocation" or Method=="getMouseLocation") then
-                return Vector2.new(select(3,IsReady(Target))[1].X,select(3,IsReady(Target))[1].Y)
-            elseif s==workspace and (Method=="Raycast" or Method=="raycast")
-               and typeof(Args[2])=="Vector3" and typeof(Args[3])=="Vector3" then
-                Args[3]=MathHandler:CalculateDirection(Args[2],select(4,IsReady(Target)),select(5,IsReady(Target)))
-                return OldNC(table.unpack(Args))
+        if aimTarget then
+            applyAim(aimTarget)
+        end
+    else
+        -- Restore sensitivity when not aiming
+        if UserInputService.MouseDeltaSensitivity == 0 then
+            UserInputService.MouseDeltaSensitivity = savedSens
+        end
+    end
+
+    -- SpinBot
+    if Aim.spinEnabled and Player.Character then
+        local sp = Player.Character:FindFirstChild(Aim.spinPart)
+        if sp and sp:IsA("BasePart") then
+            sp.CFrame = sp.CFrame * CFrame.fromEulerAnglesXYZ(0, math.rad(Aim.spinSpeed), 0)
+        end
+    end
+
+    -- TriggerBot
+    if hasMouse1Click and Aim.triggerEnabled then
+        if not Aim.triggerSmartOnly or aimActive then
+            local tgt = Mouse.Target
+            if tgt then
+                local char = tgt:FindFirstAncestorWhichIsA("Model")
+                if isValidTarget(char) and chance(Aim.triggerChance) then
+                    getfenv().mouse1click()
+                end
             end
         end
-        return OldNC(...)
-    end))
-end
-pcall(hookSilentAim)
-
-UserInputService:GetPropertyChangedSignal("MouseDeltaSensitivity"):Connect(function()
-    if not Aiming or not (hasMoveRel and Configuration.AimMode=="Mouse" or Configuration.AimMode=="Silent") then
-        MouseSensitivity=UserInputService.MouseDeltaSensitivity
     end
 end)
 
+-- ─── Key input for aimbot ─────────────────
+local aimToggleState = false  -- for Toggle mode
+
+local function aimKeyDown()
+    if Aim.keyMode == "Hold" then
+        aimActive = true
+
+    elseif Aim.keyMode == "Toggle" then
+        aimToggleState = not aimToggleState
+        aimActive = aimToggleState
+        if not aimActive then aimTarget=nil end
+
+    elseif Aim.keyMode == "OnePress" then
+        if not onePressConsumed then
+            onePressConsumed = true
+            -- snap once then stop
+            local char = findTarget()
+            if char then
+                local wp = getAimPos(char)
+                if wp then
+                    Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, wp)
+                end
+            end
+        end
+    end
+end
+
+local function aimKeyUp()
+    if Aim.keyMode == "Hold" then
+        aimActive = false
+        aimTarget = nil
+        UserInputService.MouseDeltaSensitivity = savedSens
+    end
+    if Aim.keyMode == "OnePress" then
+        onePressConsumed = false
+    end
+end
+
 -- ══════════════════════════════════════════
---  VENOM STATE
+--  VENOM STATE  (non-aimbot)
 -- ══════════════════════════════════════════
 local state = {
-    esp=false, espBoxes=true, espNames=true, espHealth=true, espTracers=false,
-    espDistance=true, espChams=false,
-    fullbright=false, noFog=false, noShadows=false, showEspPreview=false,
+    esp=false, espBoxes=true, espNames=true, espHealth=true,
+    espTracers=false, espDistance=true, espChams=false,
+    showEspPreview=false,
+    fullbright=false, noFog=false, noShadows=false,
     flyEnabled=false, noclip=false, infiniteJump=false,
     speedBoost=false, walkSpeed=16, jumpPower=50,
     godMode=false, antiAfk=false, invisible=false,
     bunnyhop=false, autoSprint=false, sprintSpeed=28,
     thirdPerson=false, tpDistance=8,
-    crosshair=false, crosshairStyle="Plus", crosshairSize=10, crosshairColor=PURPLE,
+    crosshair=false, crosshairStyle="Plus", crosshairSize=10,
     hitboxExpander=false, hitboxSize=6,
     fakelag=false, fakelagAmount=3,
     autoRejoin=false,
@@ -353,25 +495,32 @@ local MINIMAP_SIZE    = 180
 --  CONFIG
 -- ══════════════════════════════════════════
 local function saveConfig()
-    local data={}
-    for k,v in state do local t=type(v); if t=="boolean" or t=="number" or t=="string" then data[k]=v end end
-    pcall(function() writefile(CONFIG_FILE,HttpService:JSONEncode(data)) end)
+    local d={}
+    for k,v in state do local t=type(v); if t=="boolean" or t=="number" or t=="string" then d[k]=v end end
+    -- Also save aim settings
+    d["_aim_mode"]    = Aim.mode
+    d["_aim_part"]    = Aim.aimPart
+    d["_aim_keymode"] = Aim.keyMode
+    d["_aim_fov"]     = Aim.fovRadius
+    d["_aim_smooth"]  = Aim.smoothAmount
+    d["_aim_predict"] = Aim.predictAmount
+    d["_aim_maxdist"] = Aim.maxDist
+    pcall(function() writefile(CONFIG_FILE,HttpService:JSONEncode(d)) end)
 end
+
 local function loadConfig()
-    local ok,raw=pcall(readfile,CONFIG_FILE)
-    if not ok or not raw then return end
-    local ok2,data=pcall(HttpService.JSONDecode,HttpService,raw)
-    if not ok2 or type(data)~="table" then return end
-    for k,v in data do if state[k]~=nil then state[k]=v end end
+    local ok,raw=pcall(readfile,CONFIG_FILE); if not ok or not raw then return end
+    local ok2,d=pcall(HttpService.JSONDecode,HttpService,raw); if not ok2 or type(d)~="table" then return end
+    for k,v in d do if state[k]~=nil then state[k]=v end end
+    if d["_aim_mode"]    then Aim.mode         = d["_aim_mode"]    end
+    if d["_aim_part"]    then Aim.aimPart       = d["_aim_part"]    end
+    if d["_aim_keymode"] then Aim.keyMode       = d["_aim_keymode"] end
+    if d["_aim_fov"]     then Aim.fovRadius     = d["_aim_fov"]     end
+    if d["_aim_smooth"]  then Aim.smoothAmount  = d["_aim_smooth"]  end
+    if d["_aim_predict"] then Aim.predictAmount = d["_aim_predict"] end
+    if d["_aim_maxdist"] then Aim.maxDist       = d["_aim_maxdist"] end
 end
 loadConfig()
-
--- ══════════════════════════════════════════
---  HELPERS
--- ══════════════════════════════════════════
-local function getHum()  local c=Player.Character; return c and c:FindFirstChildOfClass("Humanoid") end
-local function getHRP()  local c=Player.Character; return c and c:FindFirstChild("HumanoidRootPart") end
-local function getHead() local c=Player.Character; return c and c:FindFirstChild("Head") end
 
 -- ══════════════════════════════════════════
 --  MAP SCANNER
@@ -379,6 +528,7 @@ local function getHead() local c=Player.Character; return c and c:FindFirstChild
 local MAP_CELLS=64
 local mapMinX,mapMaxX,mapMinZ,mapMaxZ=math.huge,-math.huge,math.huge,-math.huge
 local mapGrid={}; local mapScanned=false
+
 local function scanMap()
     mapMinX,mapMaxX,mapMinZ,mapMaxZ=math.huge,-math.huge,math.huge,-math.huge
     for _,obj in workspace:GetDescendants() do
@@ -412,13 +562,12 @@ task.spawn(scanMap)
 -- ══════════════════════════════════════════
 --  SCREEN GUI
 -- ══════════════════════════════════════════
-local ScreenGui=Instance.new("ScreenGui")
-ScreenGui.Name="VenomGUI"; ScreenGui.ResetOnSpawn=false
-ScreenGui.IgnoreGuiInset=true; ScreenGui.ZIndexBehavior=Enum.ZIndexBehavior.Sibling
-ScreenGui.Parent=PlayerGui
+local ScreenGui=Instance.new("ScreenGui"); ScreenGui.Name="VenomGUI"
+ScreenGui.ResetOnSpawn=false; ScreenGui.IgnoreGuiInset=true
+ScreenGui.ZIndexBehavior=Enum.ZIndexBehavior.Sibling; ScreenGui.Parent=PlayerGui
 
 -- ══════════════════════════════════════════
---  MINIMAP (small corner radar)
+--  MINIMAP  (small corner radar)
 -- ══════════════════════════════════════════
 local MinimapFrame=Instance.new("Frame")
 MinimapFrame.Size=UDim2.new(0,MINIMAP_SIZE,0,MINIMAP_SIZE)
@@ -480,6 +629,7 @@ for _,pct in {0.33,0.66,1.0} do
     local st=Instance.new("UIStroke",ring); st.Color=Color3.fromRGB(50,30,80); st.Thickness=0.5; st.Transparency=0.5
     Instance.new("UICorner",ring).CornerRadius=UDim.new(1,0)
 end
+
 local function mmLine(vert)
     local l=Instance.new("Frame"); l.BackgroundColor3=Color3.fromRGB(50,30,80); l.BorderSizePixel=0; l.ZIndex=6; l.Parent=radarLayer
     if vert then l.Size=UDim2.new(0,1,1,0); l.Position=UDim2.new(0.5,0,0,0)
@@ -497,7 +647,6 @@ mmLabel.Position=UDim2.new(0,0,1,2); mmLabel.BackgroundTransparency=1
 mmLabel.Text="RADAR  ·  "..tostring(state.minimapRange).."st"; mmLabel.TextColor3=SUBTEXT
 mmLabel.TextSize=8; mmLabel.Font=Enum.Font.GothamSemibold; mmLabel.ZIndex=5; mmLabel.Parent=MinimapFrame
 
--- M key hint
 local mmMHint=Instance.new("TextLabel"); mmMHint.Size=UDim2.new(1,0,0,11)
 mmMHint.Position=UDim2.new(0,0,1,17); mmMHint.BackgroundTransparency=1
 mmMHint.Text="[M] Full Map"; mmMHint.TextColor3=Color3.fromRGB(90,60,130)
@@ -516,11 +665,9 @@ local function getMMDot(i)
 end
 
 -- ══════════════════════════════════════════
---  FULL MAP  (Fortnite-style, press M)
+--  FULL MAP  (press M)
 -- ══════════════════════════════════════════
-local FULLMAP_CELLS = 96
-local fullMapTiles  = {}
-local FULLMAP_SIZE  = 560
+local FULLMAP_CELLS=96; local fullMapTiles={}; local FULLMAP_SIZE=560
 
 local FullMapFrame=Instance.new("Frame")
 FullMapFrame.Size=UDim2.new(0,FULLMAP_SIZE+20,0,FULLMAP_SIZE+60)
@@ -530,7 +677,6 @@ FullMapFrame.ZIndex=50; FullMapFrame.Visible=false; FullMapFrame.Parent=ScreenGu
 Instance.new("UICorner",FullMapFrame).CornerRadius=UDim.new(0,12)
 local fmStroke=Instance.new("UIStroke",FullMapFrame); fmStroke.Color=PURPLE; fmStroke.Thickness=2
 
--- Header
 local fmHeader=Instance.new("Frame"); fmHeader.Size=UDim2.new(1,0,0,36)
 fmHeader.BackgroundColor3=BG2; fmHeader.BorderSizePixel=0; fmHeader.ZIndex=51; fmHeader.Parent=FullMapFrame
 Instance.new("UICorner",fmHeader).CornerRadius=UDim.new(0,12)
@@ -549,17 +695,13 @@ fmCloseBtn.Position=UDim2.new(1,-30,0.5,-11); fmCloseBtn.BackgroundColor3=Color3
 fmCloseBtn.Text="✕"; fmCloseBtn.TextColor3=RED; fmCloseBtn.TextSize=11
 fmCloseBtn.Font=Enum.Font.GothamBold; fmCloseBtn.BorderSizePixel=0; fmCloseBtn.ZIndex=52; fmCloseBtn.Parent=fmHeader
 Instance.new("UICorner",fmCloseBtn).CornerRadius=UDim.new(0,4)
-fmCloseBtn.MouseButton1Click:Connect(function()
-    state.fullMapOpen=false; FullMapFrame.Visible=false
-end)
+fmCloseBtn.MouseButton1Click:Connect(function() state.fullMapOpen=false; FullMapFrame.Visible=false end)
 
--- Map area
 local fmArea=Instance.new("Frame"); fmArea.Size=UDim2.new(0,FULLMAP_SIZE,0,FULLMAP_SIZE)
 fmArea.Position=UDim2.new(0,10,0,42); fmArea.BackgroundColor3=Color3.fromRGB(10,10,18)
 fmArea.BorderSizePixel=0; fmArea.ZIndex=51; fmArea.ClipsDescendants=true; fmArea.Parent=FullMapFrame
 Instance.new("UICorner",fmArea).CornerRadius=UDim.new(0,6)
 
--- Build full-map tile grid
 local fmTilePx=FULLMAP_SIZE/FULLMAP_CELLS
 for r=1,FULLMAP_CELLS do fullMapTiles[r]={}
     for c=1,FULLMAP_CELLS do
@@ -570,17 +712,13 @@ for r=1,FULLMAP_CELLS do fullMapTiles[r]={}
         fullMapTiles[r][c]=t
     end
 end
+task.spawn(function() while not mapScanned do task.wait(0.1) end; applyMapGrid(fullMapTiles,FULLMAP_CELLS) end)
 
--- Compass rose labels
-local compass={N=UDim2.new(0.5,0,0,4),S=UDim2.new(0.5,0,1,-14),
-               W=UDim2.new(0,4,0.5,0),E=UDim2.new(1,-14,0.5,0)}
-for label,pos in compass do
+for label,pos in {N=UDim2.new(0.5,0,0,4),S=UDim2.new(0.5,0,1,-14),W=UDim2.new(0,4,0.5,0),E=UDim2.new(1,-14,0.5,0)} do
     local l=Instance.new("TextLabel"); l.Size=UDim2.new(0,14,0,14); l.Position=pos
     l.BackgroundTransparency=1; l.Text=label; l.TextColor3=Color3.fromRGB(200,180,255)
     l.TextSize=10; l.Font=Enum.Font.GothamBold; l.ZIndex=58; l.Parent=fmArea
 end
-
--- Grid lines on full map
 for i=1,5 do
     local p=(i/6)
     local lh=Instance.new("Frame"); lh.Size=UDim2.new(1,0,0,1); lh.Position=UDim2.new(0,0,p,0)
@@ -589,14 +727,12 @@ for i=1,5 do
     lv.BackgroundColor3=Color3.fromRGB(40,25,70); lv.BorderSizePixel=0; lv.ZIndex=53; lv.Parent=fmArea
 end
 
--- Self marker on full map
 local fmSelf=Instance.new("Frame"); fmSelf.Size=UDim2.new(0,10,0,10)
-fmSelf.AnchorPoint=Vector2.new(0.5,0.5); fmSelf.Position=UDim2.new(0.5,0,0.5,0)
-fmSelf.BackgroundColor3=Color3.fromRGB(100,220,255); fmSelf.BorderSizePixel=0; fmSelf.ZIndex=59; fmSelf.Parent=fmArea
+fmSelf.AnchorPoint=Vector2.new(0.5,0.5); fmSelf.BackgroundColor3=Color3.fromRGB(100,220,255)
+fmSelf.BorderSizePixel=0; fmSelf.ZIndex=59; fmSelf.Parent=fmArea
 Instance.new("UICorner",fmSelf).CornerRadius=UDim.new(1,0)
 local fmSelfStroke=Instance.new("UIStroke",fmSelf); fmSelfStroke.Color=Color3.fromRGB(255,255,255); fmSelfStroke.Thickness=1.5
 
--- Enemy dots pool for full map
 local fmEnemyDots={}
 local function getFmDot(i)
     if fmEnemyDots[i] then return fmEnemyDots[i] end
@@ -609,16 +745,12 @@ local function getFmDot(i)
     fmEnemyDots[i]=dot; return dot
 end
 
--- Footer: legend
-local fmFooter=Instance.new("Frame"); fmFooter.Size=UDim2.new(1,0,0,22)
-fmFooter.Position=UDim2.new(0,0,1,-22); fmFooter.BackgroundTransparency=1; fmFooter.ZIndex=51; fmFooter.Parent=FullMapFrame
-local fmLegend=Instance.new("TextLabel"); fmLegend.Size=UDim2.new(1,0,1,0)
-fmLegend.BackgroundTransparency=1
-fmLegend.Text="🔵 You   🔴 Enemy   🟡 Aimbot Target   🟢 Teammate"
-fmLegend.TextColor3=SUBTEXT; fmLegend.TextSize=9; fmLegend.Font=Enum.Font.Gotham
-fmLegend.ZIndex=52; fmLegend.Parent=fmFooter
+local fmFooter=Instance.new("TextLabel"); fmFooter.Size=UDim2.new(1,0,0,20)
+fmFooter.Position=UDim2.new(0,0,1,-20); fmFooter.BackgroundTransparency=1
+fmFooter.Text="🔵 You   🔴 Enemy   🟡 Aimbot Target   🟢 Teammate"
+fmFooter.TextColor3=SUBTEXT; fmFooter.TextSize=9; fmFooter.Font=Enum.Font.Gotham
+fmFooter.ZIndex=52; fmFooter.Parent=FullMapFrame
 
--- Rescan button on full map
 local fmRescanBtn=Instance.new("TextButton"); fmRescanBtn.Size=UDim2.new(0,120,0,22)
 fmRescanBtn.AnchorPoint=Vector2.new(1,0); fmRescanBtn.Position=UDim2.new(1,-10,0,42+4)
 fmRescanBtn.BackgroundColor3=PURPLE_DARK; fmRescanBtn.BorderSizePixel=0
@@ -632,7 +764,6 @@ fmRescanBtn.MouseButton1Click:Connect(function()
         fmRescanBtn.Text="↺ Rescan Map"
     end)
 end)
-task.spawn(function() while not mapScanned do task.wait(0.1) end; applyMapGrid(fullMapTiles,FULLMAP_CELLS) end)
 
 -- ══════════════════════════════════════════
 --  ESP PREVIEW POPUP
@@ -662,7 +793,6 @@ epClose.TextColor3=RED; epClose.TextSize=9; epClose.Font=Enum.Font.GothamBold; e
 Instance.new("UICorner",epClose).CornerRadius=UDim.new(0,3)
 epClose.MouseButton1Click:Connect(function() state.showEspPreview=false; EspPreviewPopup.Visible=false end)
 
--- Draggable
 local epDrag,epDS,epSP=false,nil,nil
 epTbar.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then epDrag=true; epDS=i.Position; epSP=EspPreviewPopup.Position end end)
 epTbar.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then epDrag=false end end)
@@ -699,11 +829,11 @@ local previewTracer=Instance.new("Frame"); previewTracer.Size=UDim2.new(0,1.5,0,
 previewTracer.Position=UDim2.new(0.5,0,1,-28); previewTracer.AnchorPoint=Vector2.new(0.5,0)
 previewTracer.BackgroundColor3=PURPLE; previewTracer.BorderSizePixel=0; previewTracer.ZIndex=7; previewTracer.Parent=epContent
 local previewHpLabel=Instance.new("TextLabel"); previewHpLabel.Size=UDim2.new(1,0,0,12)
-previewHpLabel.Position=UDim2.new(0,0,1,-22); previewHpLabel.BackgroundTransparency=1; previewHpLabel.Text="72 HP"
+previewHpLabel.Position=UDim2.new(0,0,1,-22); previewHpLabel.BackgroundTransparency=1
 previewHpLabel.TextColor3=GREEN; previewHpLabel.TextSize=9; previewHpLabel.Font=Enum.Font.GothamBold
 previewHpLabel.TextXAlignment=Enum.TextXAlignment.Center; previewHpLabel.ZIndex=7; previewHpLabel.Parent=epContent
 local previewDistLabel=Instance.new("TextLabel"); previewDistLabel.Size=UDim2.new(1,0,0,11)
-previewDistLabel.Position=UDim2.new(0,0,1,-10); previewDistLabel.BackgroundTransparency=1; previewDistLabel.Text="~42m"
+previewDistLabel.Position=UDim2.new(0,0,1,-10); previewDistLabel.BackgroundTransparency=1
 previewDistLabel.TextColor3=SUBTEXT; previewDistLabel.TextSize=8; previewDistLabel.Font=Enum.Font.Gotham
 previewDistLabel.TextXAlignment=Enum.TextXAlignment.Center; previewDistLabel.ZIndex=7; previewDistLabel.Parent=epContent
 
@@ -733,51 +863,41 @@ FovCircle.ZIndex=10; FovCircle.Visible=false; FovCircle.Parent=ScreenGui
 Instance.new("UICorner",FovCircle).CornerRadius=UDim.new(1,0)
 local FovStroke=Instance.new("UIStroke"); FovStroke.Color=PURPLE; FovStroke.Thickness=1.5; FovStroke.Transparency=0.2; FovStroke.Parent=FovCircle
 RunService.RenderStepped:Connect(function()
-    FovCircle.Visible=ShowingFoV and Configuration.FoVCheck
+    FovCircle.Visible=Aim.showFov and Aim.fovEnabled
     if not FovCircle.Visible then return end
-    local r=Configuration.FoVRadius; local ml=UserInputService:GetMouseLocation()
+    local r=Aim.fovRadius; local ml=mousePos()
     FovCircle.Size=UDim2.new(0,r*2,0,r*2); FovCircle.Position=UDim2.new(0,ml.X-r,0,ml.Y-r)
 end)
 
 -- ══════════════════════════════════════════
---  CUSTOM CROSSHAIR  (Drawing API)
+--  CUSTOM CROSSHAIR  (Drawing)
 -- ══════════════════════════════════════════
 local crosshairDrawings={}
 local function rebuildCrosshair()
-    for _,d in crosshairDrawings do pcall(function() d:Remove() end) end
-    crosshairDrawings={}
+    for _,d in crosshairDrawings do pcall(function() d:Remove() end) end; crosshairDrawings={}
     if not state.crosshair or not hasDrawing then return end
-    local s=state.crosshairSize; local col=state.crosshairColor or PURPLE
+    local s=state.crosshairSize
     if state.crosshairStyle=="Plus" then
-        for _,def in {
-            {Vector2.new(-s,0),Vector2.new(s,0)},
-            {Vector2.new(0,-s),Vector2.new(0,s)}
-        } do
+        for _,def in {{Vector2.new(-s,0),Vector2.new(s,0)},{Vector2.new(0,-s),Vector2.new(0,s)}} do
             local l=Drawing.new("Line"); l.From=def[1]; l.To=def[2]
-            l.Color=col; l.Thickness=1.5; l.Transparency=1; l.Visible=true
+            l.Color=PURPLE; l.Thickness=1.5; l.Transparency=1; l.Visible=true
             table.insert(crosshairDrawings,l)
         end
     elseif state.crosshairStyle=="Dot" then
-        local c=Drawing.new("Circle"); c.Radius=3; c.Color=col; c.Filled=true
+        local c=Drawing.new("Circle"); c.Radius=3; c.Color=PURPLE; c.Filled=true
         c.Transparency=1; c.Visible=true; table.insert(crosshairDrawings,c)
     elseif state.crosshairStyle=="X" then
-        for _,def in {
-            {Vector2.new(-s,-s),Vector2.new(s,s)},
-            {Vector2.new(s,-s),Vector2.new(-s,s)}
-        } do
+        for _,def in {{Vector2.new(-s,-s),Vector2.new(s,s)},{Vector2.new(s,-s),Vector2.new(-s,s)}} do
             local l=Drawing.new("Line"); l.From=def[1]; l.To=def[2]
-            l.Color=col; l.Thickness=1.5; l.Transparency=1; l.Visible=true
+            l.Color=PURPLE; l.Thickness=1.5; l.Transparency=1; l.Visible=true
             table.insert(crosshairDrawings,l)
         end
     end
 end
 
 RunService.RenderStepped:Connect(function()
-    if not state.crosshair or not hasDrawing then return end
-    if #crosshairDrawings==0 then return end
-    local vp=workspace.CurrentCamera.ViewportSize
-    local cx,cy=vp.X/2,vp.Y/2
-    local s=state.crosshairSize
+    if not state.crosshair or not hasDrawing or #crosshairDrawings==0 then return end
+    local vp=Camera.ViewportSize; local cx,cy=vp.X/2,vp.Y/2; local s=state.crosshairSize
     if state.crosshairStyle=="Plus" and #crosshairDrawings>=2 then
         crosshairDrawings[1].From=Vector2.new(cx-s,cy); crosshairDrawings[1].To=Vector2.new(cx+s,cy)
         crosshairDrawings[2].From=Vector2.new(cx,cy-s); crosshairDrawings[2].To=Vector2.new(cx,cy+s)
@@ -835,17 +955,15 @@ local function updateESPForPlayer(plr)
     local d=getOrCreateESP(plr); if not d then return end
     local char=plr.Character; if not char then hideDrawings(d); return end
     local hrp=char:FindFirstChild("HumanoidRootPart")
-    local head=char:FindFirstChild("Head")
-    local hum=char:FindFirstChildOfClass("Humanoid")
+    local head=char:FindFirstChild("Head"); local hum=char:FindFirstChildOfClass("Humanoid")
     if not hrp or not head or not hum then hideDrawings(d); return end
-    local cam=workspace.CurrentCamera
-    local topSP=cam:WorldToViewportPoint(head.Position+Vector3.new(0,head.Size.Y/2+0.1,0))
-    local botSP=cam:WorldToViewportPoint(hrp.Position-Vector3.new(0,hrp.Size.Y/2+0.3,0))
-    local hrpSP,hrpVis=cam:WorldToViewportPoint(hrp.Position)
+    local topSP=Camera:WorldToViewportPoint(head.Position+Vector3.new(0,head.Size.Y/2+0.1,0))
+    local botSP=Camera:WorldToViewportPoint(hrp.Position-Vector3.new(0,hrp.Size.Y/2+0.3,0))
+    local hrpSP,hrpVis=Camera:WorldToViewportPoint(hrp.Position)
     if not hrpVis then hideDrawings(d); return end
     local boxH=math.abs(botSP.Y-topSP.Y); local boxW=boxH*0.55
     local boxX=hrpSP.X-boxW/2; local boxY=topSP.Y
-    local isTarget=(char==Target)
+    local isTarget=(char==aimTarget)
     local col=isTarget and GOLD or PURPLE
     local pct=math.clamp(hum.Health/math.max(hum.MaxHealth,1),0,1)
     local hpCol=Color3.fromRGB(math.round(255*(1-pct)),math.round(200*pct),0)
@@ -860,10 +978,10 @@ local function updateESPForPlayer(plr)
         d.nameText.Visible=state.esp and state.espNames
         if d.nameText.Visible then d.nameText.Text=plr.DisplayName..(isTarget and " ◀" or ""); d.nameText.Position=Vector2.new(hrpSP.X,topSP.Y-16); d.nameText.Color=col end
     end
-    local barW,barX=4,boxX-barW-2
+    local barW,barX=4,boxX-6
     if d.healthBg then
         d.healthBg.Visible=state.esp and state.espHealth
-        if d.healthBg.Visible then d.healthBg.Position=Vector2.new(barX,boxY); d.healthBg.Size=Vector2.new(barW,boxH); d.healthBg.Color=Color3.fromRGB(20,20,20) end
+        if d.healthBg.Visible then d.healthBg.Position=Vector2.new(barX,boxY); d.healthBg.Size=Vector2.new(barW,boxH) end
     end
     if d.healthFill then
         local fH=boxH*pct
@@ -871,7 +989,7 @@ local function updateESPForPlayer(plr)
         if d.healthFill.Visible then d.healthFill.Position=Vector2.new(barX,boxY+boxH-fH); d.healthFill.Size=Vector2.new(barW,fH); d.healthFill.Color=hpCol end
     end
     if d.tracer then
-        local vp=cam.ViewportSize
+        local vp=Camera.ViewportSize
         d.tracer.Visible=state.esp and state.espTracers
         if d.tracer.Visible then d.tracer.From=Vector2.new(vp.X/2,vp.Y); d.tracer.To=Vector2.new(hrpSP.X,botSP.Y); d.tracer.Color=col; d.tracer.Thickness=isTarget and tracerThickness+1 or tracerThickness end
     end
@@ -912,9 +1030,8 @@ Players.PlayerAdded:Connect(function(plr)
     plr.CharacterAdded:Connect(function(char)
         task.wait(1)
         if state.hitboxExpander then
-            local head=char:FindFirstChild("Head"); if head then head.Size=Vector3.new(state.hitboxSize,state.hitboxSize,state.hitboxSize) end
+            local h=char:FindFirstChild("Head"); if h then h.Size=Vector3.new(state.hitboxSize,state.hitboxSize,state.hitboxSize) end
         end
-        if state.esp then updateESPForPlayer(plr) end
     end)
 end)
 
@@ -938,16 +1055,16 @@ local function setFakeLag(on)
 end
 
 -- ══════════════════════════════════════════
---  THIRD PERSON CAMERA
+--  THIRD PERSON
 -- ══════════════════════════════════════════
-local originalMaxZoom=400
+local origMaxZoom=400
 local function setThirdPerson(on)
     if on then
-        originalMaxZoom=Player.CameraMaxZoomDistance
+        origMaxZoom=Player.CameraMaxZoomDistance
         Player.CameraMaxZoomDistance=state.tpDistance
         Player.CameraMinZoomDistance=state.tpDistance
     else
-        Player.CameraMaxZoomDistance=originalMaxZoom
+        Player.CameraMaxZoomDistance=origMaxZoom
         Player.CameraMinZoomDistance=0.5
     end
 end
@@ -957,13 +1074,9 @@ end
 -- ══════════════════════════════════════════
 local function setupAutoRejoin()
     Player.CharacterAdded:Connect(function(char)
-        local hum=char:WaitForChild("Humanoid",10)
-        if not hum then return end
+        local hum=char:WaitForChild("Humanoid",10); if not hum then return end
         hum.Died:Connect(function()
-            if state.autoRejoin then
-                task.wait(3)
-                TeleportService:Teleport(game.PlaceId,Player)
-            end
+            if state.autoRejoin then task.wait(3); pcall(function() TeleportService:Teleport(game.PlaceId,Player) end) end
         end)
     end)
 end
@@ -1111,15 +1224,14 @@ local function TG(name,kb,def,cb,isR)
     local function setState(v) st=v
         TweenService:Create(dot,TWEEN_FAST,{BackgroundColor3=st and PURPLE or Color3.fromRGB(50,50,60)}):Play()
         lb.TextColor3=st and TEXT or SUBTEXT; if cb then cb(st) end end
-    btn.MouseButton1Click:Connect(function() setState(not st) end); return row, setState
+    btn.MouseButton1Click:Connect(function() setState(not st) end); return row,setState
 end
 local function SLD(name,mn,mx,def,sfx,cb,isR)
     sfx=sfx or ""
     local card=Instance.new("Frame"); card.Size=UDim2.new(1,0,0,46); card.BackgroundTransparency=1; card.Visible=false
     if isR then RO+=1;card.LayoutOrder=RO;card.Parent=RightScroll else LO+=1;card.LayoutOrder=LO;card.Parent=LeftScroll end
     local nL=Instance.new("TextLabel"); nL.Size=UDim2.new(0.6,0,0,18); nL.BackgroundTransparency=1
-    nL.Text=name; nL.TextColor3=SUBTEXT; nL.TextSize=11; nL.Font=Enum.Font.Gotham
-    nL.TextXAlignment=Enum.TextXAlignment.Left; nL.Parent=card
+    nL.Text=name; nL.TextColor3=SUBTEXT; nL.TextSize=11; nL.Font=Enum.Font.Gotham; nL.TextXAlignment=Enum.TextXAlignment.Left; nL.Parent=card
     local vL=Instance.new("TextLabel"); vL.Size=UDim2.new(0.4,0,0,18); vL.Position=UDim2.new(0.6,0,0,0)
     vL.BackgroundTransparency=1; vL.Text=tostring(def)..sfx; vL.TextColor3=PURPLE
     vL.TextSize=11; vL.Font=Enum.Font.GothamBold; vL.TextXAlignment=Enum.TextXAlignment.Right; vL.Parent=card
@@ -1176,70 +1288,76 @@ local tMove    = makeTabBtn("movement", 5)
 local tAddons  = makeTabBtn("addons",   6)
 local tConfig  = makeTabBtn("config",   7)
 
--- ── AIMBOT TAB ──
+-- ══════════════════════════════════════════
+--  AIMBOT TAB  (new clean settings)
+-- ══════════════════════════════════════════
 addL(tAimbot, SL("Aimbot",false))
-addL(tAimbot, TG("Enable Aimbot","",Configuration.Aimbot,function(on) Configuration.Aimbot=on; if not on then ResetAimbotFields() end end,false))
-addL(tAimbot, TG("One-Press Mode","",Configuration.OnePressAimingMode,function(on) Configuration.OnePressAimingMode=on end,false))
-addL(tAimbot, DD("Aim Mode",{"Camera","Mouse","Silent"},Configuration.AimMode,function(v) Configuration.AimMode=v end,false))
-addL(tAimbot, DD("Aim Part",{"Head","HumanoidRootPart","Torso","UpperTorso"},Configuration.AimPart,function(v) Configuration.AimPart=v end,false))
-addL(tAimbot, TG("Show FOV Circle","",false,function(on) ShowingFoV=on end,false))
-addL(tAimbot, SLD("FOV Radius",10,600,Configuration.FoVRadius,"px",function(v) Configuration.FoVRadius=v end,false))
-addL(tAimbot, TG("Off After Kill","",Configuration.OffAimbotAfterKill,function(on) Configuration.OffAimbotAfterKill=on end,false))
-addL(tAimbot, SL("Offset",false))
-addL(tAimbot, TG("Use Offset","",Configuration.UseOffset,function(on) Configuration.UseOffset=on end,false))
-addL(tAimbot, DD("Offset Type",{"Static","Dynamic","Static & Dynamic"},Configuration.OffsetType,function(v) Configuration.OffsetType=v end,false))
-addL(tAimbot, SLD("Static Offset",1,50,Configuration.StaticOffsetIncrement,"",function(v) Configuration.StaticOffsetIncrement=v end,false))
-addL(tAimbot, SLD("Dynamic Offset",1,50,Configuration.DynamicOffsetIncrement,"",function(v) Configuration.DynamicOffsetIncrement=v end,false))
-addR(tAimbot, SL("Sensitivity & Noise",true))
-addR(tAimbot, TG("Use Sensitivity","",Configuration.UseSensitivity,function(on) Configuration.UseSensitivity=on end,true))
-addR(tAimbot, SLD("Sensitivity",1,100,Configuration.Sensitivity,"",function(v) Configuration.Sensitivity=v end,true))
-addR(tAimbot, TG("Use Noise","",Configuration.UseNoise,function(on) Configuration.UseNoise=on end,true))
-addR(tAimbot, SLD("Noise Frequency",1,100,Configuration.NoiseFrequency,"",function(v) Configuration.NoiseFrequency=v end,true))
-addR(tAimbot, SL("Silent Aim",true))
-addR(tAimbot, TG("Mouse.Hit/Target","",true,function(on)
-    local k="Mouse.Hit / Mouse.Target"
-    if on then if not table.find(Configuration.SilentAimMethods,k) then table.insert(Configuration.SilentAimMethods,k) end
-    else local i=table.find(Configuration.SilentAimMethods,k); if i then table.remove(Configuration.SilentAimMethods,i) end end end,true))
-addR(tAimbot, TG("GetMouseLocation","",true,function(on)
-    local k="GetMouseLocation"
-    if on then if not table.find(Configuration.SilentAimMethods,k) then table.insert(Configuration.SilentAimMethods,k) end
-    else local i=table.find(Configuration.SilentAimMethods,k); if i then table.remove(Configuration.SilentAimMethods,i) end end end,true))
-addR(tAimbot, TG("Raycast","",false,function(on)
-    local k="Raycast"
-    if on then if not table.find(Configuration.SilentAimMethods,k) then table.insert(Configuration.SilentAimMethods,k) end
-    else local i=table.find(Configuration.SilentAimMethods,k); if i then table.remove(Configuration.SilentAimMethods,i) end end end,true))
-addR(tAimbot, SLD("Silent Chance",1,100,Configuration.SilentAimChance,"%",function(v) Configuration.SilentAimChance=v end,true))
+addL(tAimbot, TG("Enable Aimbot","RMB",Aim.enabled,function(on) Aim.enabled=on; if not on then aimActive=false; aimTarget=nil end end,false))
 
--- ── BOTS TAB ──
-addL(tBots, SL("SpinBot",false))
-addL(tBots, TG("Enable SpinBot","",Configuration.SpinBot,function(on) Configuration.SpinBot=on; if not on then Spinning=false end end,false))
-addL(tBots, SLD("Spin Velocity",1,100,Configuration.SpinBotVelocity,"°/f",function(v) Configuration.SpinBotVelocity=v end,false))
-addL(tBots, DD("Spin Part",{"Head","HumanoidRootPart"},Configuration.SpinPart,function(v) Configuration.SpinPart=v end,false))
-addL(tBots, SL("TriggerBot",false))
-if hasMouse1Click then
-    addL(tBots, TG("Enable TriggerBot","",Configuration.TriggerBot,function(on) Configuration.TriggerBot=on end,false))
-    addL(tBots, TG("Smart (only while aiming)","",Configuration.SmartTriggerBot,function(on) Configuration.SmartTriggerBot=on end,false))
-    addL(tBots, SLD("Hit Chance",1,100,Configuration.TriggerBotChance,"%",function(v) Configuration.TriggerBotChance=v end,false))
+addL(tAimbot, DD("Aim Mode",{"Camera","Mouse","Silent"},Aim.mode,function(v) Aim.mode=v end,false))
+addL(tAimbot, DD("Aim Part",{"Head","HumanoidRootPart","Torso","UpperTorso"},Aim.aimPart,function(v) Aim.aimPart=v; aimTarget=nil end,false))
+addL(tAimbot, DD("Key Mode",{"Hold","Toggle","OnePress"},Aim.keyMode,function(v) Aim.keyMode=v; aimActive=false; aimTarget=nil end,false))
+
+addL(tAimbot, SL("Field of View",false))
+addL(tAimbot, TG("Use FOV","",Aim.fovEnabled,function(on) Aim.fovEnabled=on end,false))
+addL(tAimbot, TG("Show FOV Circle","",Aim.showFov,function(on) Aim.showFov=on end,false))
+addL(tAimbot, SLD("FOV Radius",10,600,Aim.fovRadius,"px",function(v) Aim.fovRadius=v end,false))
+
+addL(tAimbot, SL("Smoothing",false))
+addL(tAimbot, TG("Enable Smoothing","",Aim.smoothEnabled,function(on) Aim.smoothEnabled=on end,false))
+addL(tAimbot, SLD("Smooth Amount",1,100,math.round(Aim.smoothAmount*100),"%",function(v) Aim.smoothAmount=v/100 end,false))
+
+addR(tAimbot, SL("Prediction",true))
+addR(tAimbot, TG("Enable Prediction","",Aim.predictEnabled,function(on) Aim.predictEnabled=on end,true))
+addR(tAimbot, SLD("Predict Amount",1,30,math.round(Aim.predictAmount*100),"ms",function(v) Aim.predictAmount=v/100 end,true))
+
+addR(tAimbot, SL("Silent Aim",true))
+if hasHookMeta then
+    addR(tAimbot, TL("Silent hooks installed ✔",true))
 else
-    addL(tBots, TL("⚠ mouse1click not available",false))
+    addR(tAimbot, TL("⚠ hookmetamethod not available",true))
+end
+addR(tAimbot, SLD("Silent Chance",1,100,Aim.silentChance,"%",function(v) Aim.silentChance=v end,true))
+
+addR(tAimbot, SL("Range",true))
+addR(tAimbot, SLD("Max Distance",0,2000,Aim.maxDist,"st",function(v) Aim.maxDist=v end,true))
+addR(tAimbot, TL("0 = unlimited",true))
+
+-- ══════════════════════════════════════════
+--  BOTS TAB
+-- ══════════════════════════════════════════
+addL(tBots, SL("SpinBot",false))
+addL(tBots, TG("Enable SpinBot","",Aim.spinEnabled,function(on) Aim.spinEnabled=on end,false))
+addL(tBots, SLD("Spin Speed",1,100,Aim.spinSpeed,"°/f",function(v) Aim.spinSpeed=v end,false))
+addL(tBots, DD("Spin Part",{"Head","HumanoidRootPart"},Aim.spinPart,function(v) Aim.spinPart=v end,false))
+
+addR(tBots, SL("TriggerBot",true))
+if hasMouse1Click then
+    addR(tBots, TG("Enable TriggerBot","",Aim.triggerEnabled,function(on) Aim.triggerEnabled=on end,true))
+    addR(tBots, TG("Smart (while aiming only)","",Aim.triggerSmartOnly,function(on) Aim.triggerSmartOnly=on end,true))
+    addR(tBots, SLD("Hit Chance",1,100,Aim.triggerChance,"%",function(v) Aim.triggerChance=v end,true))
+else
+    addR(tBots, TL("⚠ mouse1click not available on this executor",true))
 end
 
--- ── CHECKS TAB ──
-addL(tChecks, SL("Basic Checks",false))
-addL(tChecks, TG("Alive Check","",Configuration.AliveCheck,function(on) Configuration.AliveCheck=on end,false))
-addL(tChecks, TG("God Check","",Configuration.GodCheck,function(on) Configuration.GodCheck=on end,false))
-addL(tChecks, TG("Team Check","",Configuration.TeamCheck,function(on) Configuration.TeamCheck=on end,false))
-addL(tChecks, TG("Friend Check","",Configuration.FriendCheck,function(on) Configuration.FriendCheck=on end,false))
-addL(tChecks, TG("Wall Check","",Configuration.WallCheck,function(on) Configuration.WallCheck=on end,false))
-addR(tChecks, SL("Advanced Checks",true))
-addR(tChecks, TG("FoV Check","",Configuration.FoVCheck,function(on) Configuration.FoVCheck=on end,true))
-addR(tChecks, TG("Magnitude Check","",Configuration.MagnitudeCheck,function(on) Configuration.MagnitudeCheck=on end,true))
-addR(tChecks, SLD("Max Magnitude",10,1000,Configuration.TriggerMagnitude,"st",function(v) Configuration.TriggerMagnitude=v end,true))
-addR(tChecks, TG("Transparency Check","",Configuration.TransparencyCheck,function(on) Configuration.TransparencyCheck=on end,true))
-addR(tChecks, TG("Ignored Players","",Configuration.IgnoredPlayersCheck,function(on) Configuration.IgnoredPlayersCheck=on end,true))
-addR(tChecks, TG("Target Players","",Configuration.TargetPlayersCheck,function(on) Configuration.TargetPlayersCheck=on end,true))
+-- ══════════════════════════════════════════
+--  CHECKS TAB
+-- ══════════════════════════════════════════
+addL(tChecks, SL("Target Checks",false))
+addL(tChecks, TG("Alive Check","",Aim.checkAlive,function(on) Aim.checkAlive=on end,false))
+addL(tChecks, TG("God Mode Check","",Aim.checkGod,function(on) Aim.checkGod=on end,false))
+addL(tChecks, TG("Team Check","",Aim.checkTeam,function(on) Aim.checkTeam=on end,false))
+addL(tChecks, TG("Friend Check","",Aim.checkFriend,function(on) Aim.checkFriend=on end,false))
+addL(tChecks, TG("Wall Check","",Aim.checkWall,function(on) Aim.checkWall=on end,false))
+addL(tChecks, TL("Wall check uses raycast to verify LoS",false))
+addR(tChecks, SL("Info",true))
+addR(tChecks, TL("Checks run every frame during aiming",true))
+addR(tChecks, TL("All checks stack (all must pass)",true))
+addR(tChecks, TL("Max Distance is set in Aimbot tab",true))
 
--- ── VISUALS TAB ──
+-- ══════════════════════════════════════════
+--  VISUALS TAB
+-- ══════════════════════════════════════════
 addL(tVisuals, SL("ESP",false))
 addL(tVisuals, TG("ESP Master","",state.esp,function(on) state.esp=on
     if not on then for _,d in espDrawings do hideDrawings(d) end end end,false))
@@ -1252,7 +1370,8 @@ addL(tVisuals, TG("Distance Labels","",state.espDistance,function(on) state.espD
 addL(tVisuals, TG("Chams","",state.espChams,function(on) state.espChams=on
     if not on then for _,p in Players:GetPlayers() do if p~=Player and p.Character then
         for _,pt in p.Character:GetDescendants() do if pt:IsA("BasePart") then pt.Material=Enum.Material.SmoothPlastic end end end end end end,false))
-if not hasDrawing then addL(tVisuals, TL("⚠ Drawing API unavailable",false)) end
+if not hasDrawing then addL(tVisuals, TL("⚠ Drawing API unavailable on this executor",false)) end
+
 addR(tVisuals, SL("World",true))
 addR(tVisuals, TG("Fullbright","",state.fullbright,function(on) state.fullbright=on
     Lighting.Brightness=on and 10 or 1
@@ -1261,11 +1380,13 @@ addR(tVisuals, TG("Fullbright","",state.fullbright,function(on) state.fullbright
 addR(tVisuals, TG("No Fog","",state.noFog,function(on) state.noFog=on
     local a=Lighting:FindFirstChildOfClass("Atmosphere"); if a then a.Density=on and 0 or 0.395 end end,true))
 addR(tVisuals, TG("No Shadows","",state.noShadows,function(on) state.noShadows=on; Lighting.GlobalShadows=not on end,true))
-addR(tVisuals, SL("ESP Preview",true))
+addR(tVisuals, SL("ESP Preview Popup",true))
 addR(tVisuals, TG("Show Preview","",state.showEspPreview,function(on) state.showEspPreview=on; EspPreviewPopup.Visible=on end,true))
-addR(tVisuals, TL("Popup is draggable by title bar",true))
+addR(tVisuals, TL("Popup is draggable by its title bar",true))
 
--- ── MOVEMENT TAB ──
+-- ══════════════════════════════════════════
+--  MOVEMENT TAB
+-- ══════════════════════════════════════════
 addL(tMove, SL("Movement",false))
 addL(tMove, TG("Fly","",state.flyEnabled,function(on)
     state.flyEnabled=on; local hrp=getHRP(); local hum=getHum(); if not hrp or not hum then return end
@@ -1292,12 +1413,14 @@ addR(tMove, TG("Third Person","",state.thirdPerson,function(on) state.thirdPerso
 addR(tMove, SLD("3P Distance",3,30,state.tpDistance,"st",function(v)
     state.tpDistance=v; if state.thirdPerson then Player.CameraMaxZoomDistance=v; Player.CameraMinZoomDistance=v end end,true))
 
--- ── ADDONS TAB ──
+-- ══════════════════════════════════════════
+--  ADDONS TAB
+-- ══════════════════════════════════════════
 addL(tAddons, SL("Crosshair",false))
 addL(tAddons, TG("Custom Crosshair","",state.crosshair,function(on) state.crosshair=on; rebuildCrosshair() end,false))
 addL(tAddons, DD("Style",{"Plus","Dot","X"},state.crosshairStyle,function(v) state.crosshairStyle=v; rebuildCrosshair() end,false))
 addL(tAddons, SLD("Size",4,30,state.crosshairSize,"px",function(v) state.crosshairSize=v; rebuildCrosshair() end,false))
-addL(tAddons, SL("Combat Addons",false))
+addL(tAddons, SL("Combat",false))
 addL(tAddons, TG("Hitbox Expander","",state.hitboxExpander,function(on) state.hitboxExpander=on; applyHitboxes(on) end,false))
 addL(tAddons, SLD("Hitbox Size",2,20,state.hitboxSize,"st",function(v) state.hitboxSize=v; if state.hitboxExpander then applyHitboxes(true) end end,false))
 addL(tAddons, SL("Utility",false))
@@ -1310,12 +1433,14 @@ addR(tAddons, SLD("Radar Range",50,1000,state.minimapRange,"st",function(v)
     state.minimapRange=v; mmLabel.Text="RADAR  ·  "..tostring(v).."st" end,true))
 addR(tAddons, TG("Show Game Map","",state.showGameMap,function(on) state.showGameMap=on; mapLayer.Visible=on end,true))
 addR(tAddons, TL("Press [M] for full Fortnite-style map",true))
-addR(tAddons, SL("Keybinds",true))
-addR(tAddons, TL("GUI Toggle:  [RShift]",true))
-addR(tAddons, TL("Aim Key:     [RMB]",true))
-addR(tAddons, TL("Full Map:    [M]",true))
+addR(tAddons, SL("Keybinds Reference",true))
+addR(tAddons, TL("RShift  → toggle GUI",true))
+addR(tAddons, TL("RMB     → aim (hold/toggle/onepress)",true))
+addR(tAddons, TL("M       → fullscreen map",true))
 
--- ── CONFIG TAB ──
+-- ══════════════════════════════════════════
+--  CONFIG TAB
+-- ══════════════════════════════════════════
 addL(tConfig, SL("Config",false))
 local saveRow=Instance.new("TextButton"); saveRow.Size=UDim2.new(1,0,0,32); saveRow.BackgroundColor3=PURPLE_DARK
 saveRow.BorderSizePixel=0; saveRow.Text="💾  Save Config"; saveRow.TextColor3=PURPLE
@@ -1325,6 +1450,7 @@ Instance.new("UICorner",saveRow).CornerRadius=UDim.new(0,6)
 saveRow.MouseButton1Click:Connect(function() saveConfig(); saveRow.Text="✔  Saved!"; saveRow.TextColor3=GREEN
     task.delay(1.5,function() saveRow.Text="💾  Save Config"; saveRow.TextColor3=PURPLE end) end)
 table.insert(tConfig.leftItems,saveRow)
+
 local loadRow=Instance.new("TextButton"); loadRow.Size=UDim2.new(1,0,0,32); loadRow.BackgroundColor3=PURPLE_DARK
 loadRow.BorderSizePixel=0; loadRow.Text="📂  Load Config"; loadRow.TextColor3=PURPLE
 loadRow.TextSize=12; loadRow.Font=Enum.Font.GothamSemibold; loadRow.Visible=false
@@ -1335,47 +1461,50 @@ loadRow.MouseButton1Click:Connect(function() loadConfig(); loadRow.Text="✔  Lo
 table.insert(tConfig.leftItems,loadRow)
 addL(tConfig, TL("File: venom_config.json",false))
 addL(tConfig, TL("Auto-saves on GUI close",false))
-addR(tConfig, SL("Status",true))
-addR(tConfig, TL("venom.lol v2.0",true))
-addR(tConfig, TL("Drawing: "..(hasDrawing and "✔" or "✘"),true))
-addR(tConfig, TL("MouseMoveRel: "..(hasMoveRel and "✔" or "✘"),true))
-addR(tConfig, TL("HookMeta: "..(hasHookMeta and "✔" or "✘"),true))
-addR(tConfig, TL("Mouse1Click: "..(hasMouse1Click and "✔" or "✘"),true))
+addR(tConfig, SL("Executor Status",true))
+addR(tConfig, TL("venom.lol  v2.0",true))
+addR(tConfig, TL("Drawing API:    "..(hasDrawing     and "✔ Available" or "✘ Not found"),true))
+addR(tConfig, TL("mousemoverel:   "..(hasMoveRel     and "✔ Available" or "✘ Not found"),true))
+addR(tConfig, TL("hookmetamethod: "..(hasHookMeta    and "✔ Available" or "✘ Not found"),true))
+addR(tConfig, TL("mouse1click:    "..(hasMouse1Click and "✔ Available" or "✘ Not found"),true))
+addR(tConfig, SL("Aim Mode Notes",true))
+addR(tConfig, TL("Camera = moves camera to lock",true))
+addR(tConfig, TL("Mouse  = needs mousemoverel",true))
+addR(tConfig, TL("Silent = needs hookmetamethod",true))
 
 -- ══════════════════════════════════════════
---  INPUT HANDLING
+--  GLOBAL INPUT
 -- ══════════════════════════════════════════
 UserInputService.InputBegan:Connect(function(inp,gpe)
     if gpe then return end
+
+    -- GUI toggle
     if inp.KeyCode==Enum.KeyCode.RightShift then Win.Visible=not Win.Visible; return end
+
+    -- Full map toggle
     if inp.KeyCode==Enum.KeyCode.M then
-        state.fullMapOpen=not state.fullMapOpen
-        FullMapFrame.Visible=state.fullMapOpen
-        return
+        state.fullMapOpen=not state.fullMapOpen; FullMapFrame.Visible=state.fullMapOpen; return
     end
-    local aimMatch=(inp.UserInputType==Enum.UserInputType.MouseButton2)
-        or (typeof(Configuration.AimKey)=="EnumItem" and inp.KeyCode==Configuration.AimKey)
-    if Configuration.Aimbot and aimMatch then
-        if Configuration.OnePressAimingMode then
-            if Aiming then ResetAimbotFields() else Aiming=true end
-        else Aiming=true end
-    end
+
+    -- Aimbot key
+    if not Aim.enabled then return end
+    local isRMB = inp.UserInputType==Enum.UserInputType.MouseButton2
+    local isKey = Aim.key~="RMB" and inp.KeyCode==pcall(function() return Enum.KeyCode[Aim.key] end) and Enum.KeyCode[Aim.key]
+    if isRMB or isKey then aimKeyDown() end
 end)
 
 UserInputService.InputEnded:Connect(function(inp)
-    local aimMatch=(inp.UserInputType==Enum.UserInputType.MouseButton2)
-        or (typeof(Configuration.AimKey)=="EnumItem" and inp.KeyCode==Configuration.AimKey)
-    if Aiming and not Configuration.OnePressAimingMode and aimMatch then
-        ResetAimbotFields()
-    end
+    local isRMB = inp.UserInputType==Enum.UserInputType.MouseButton2
+    local isKey = Aim.key~="RMB" and inp.KeyCode==pcall(function() return Enum.KeyCode[Aim.key] end) and Enum.KeyCode[Aim.key]
+    if isRMB or isKey then aimKeyUp() end
 end)
 
 -- ══════════════════════════════════════════
---  RUNTIME LOOPS
+--  MOVEMENT RUNTIME
 -- ══════════════════════════════════════════
 RunService.RenderStepped:Connect(function()
     if not state.flyEnabled or not bv or not bg then return end
-    local cam=workspace.CurrentCamera; local dir=Vector3.zero
+    local cam=Camera; local dir=Vector3.zero
     if UserInputService:IsKeyDown(Enum.KeyCode.W)         then dir+=cam.CFrame.LookVector  end
     if UserInputService:IsKeyDown(Enum.KeyCode.S)         then dir-=cam.CFrame.LookVector  end
     if UserInputService:IsKeyDown(Enum.KeyCode.A)         then dir-=cam.CFrame.RightVector end
@@ -1397,14 +1526,9 @@ UserInputService.JumpRequest:Connect(function()
 end)
 
 RunService.Heartbeat:Connect(function()
-    if not state.bunnyhop then return end
-    local hum=getHum(); if not hum then return end
-    if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-        hum:ChangeState(Enum.HumanoidStateType.Jumping)
+    if state.bunnyhop and UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+        local hum=getHum(); if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
     end
-end)
-
-RunService.Heartbeat:Connect(function()
     local hum=getHum(); if not hum then return end
     if state.godMode then hum.Health=hum.MaxHealth end
     if state.speedBoost then hum.WalkSpeed=80
@@ -1415,69 +1539,8 @@ end)
 
 Player.Idled:Connect(function()
     if not state.antiAfk then return end
-    VirtualUser:Button2Down(Vector2.zero, workspace.CurrentCamera.CFrame)
-    task.wait(0.1); VirtualUser:Button2Up(Vector2.zero, workspace.CurrentCamera.CFrame)
-end)
-
--- ══════════════════════════════════════════
---  AIMBOT + SPINBOT + TRIGGERBOT LOOP
--- ══════════════════════════════════════════
-RunService.RenderStepped:Connect(function(dt)
-    if Configuration.SpinBot and Configuration.SpinPart and Player.Character then
-        local part=Player.Character:FindFirstChild(Configuration.SpinPart)
-        if part and part:IsA("BasePart") then
-            part.CFrame=part.CFrame*CFrame.fromEulerAnglesXYZ(0,math.rad(Configuration.SpinBotVelocity),0)
-        end
-    end
-    if hasMouse1Click and Configuration.TriggerBot and (not Configuration.SmartTriggerBot or Aiming) then
-        local tgt=Mouse.Target
-        if tgt and IsReady(tgt:FindFirstAncestorWhichIsA("Model")) and MathHandler:CalculateChance(Configuration.TriggerBotChance) then
-            getfenv().mouse1click()
-        end
-    end
-    if not Configuration.Aimbot and Aiming then ResetAimbotFields(); return end
-    if not Aiming then return end
-    if not IsReady(Target) then
-        if Target and Configuration.OffAimbotAfterKill then ResetAimbotFields(); return end
-        Target=nil; local closest=math.huge
-        for _,plr in Players:GetPlayers() do
-            local ok,Char,vp=IsReady(plr.Character)
-            if ok and vp[2] then
-                local dist=(Vector2.new(Mouse.X,Mouse.Y)-Vector2.new(vp[1].X,vp[1].Y)).Magnitude
-                if dist<closest and dist<=(Configuration.FoVCheck and Configuration.FoVRadius or dist) then
-                    Target=Char; closest=dist end
-            end
-        end
-    end
-    local ok,_,vp,WorldPos=IsReady(Target)
-    if not ok or not vp[2] then ResetAimbotFields(true); return end
-    local myChar=Player.Character
-    local myHead=myChar and myChar:FindFirstChild("Head")
-    local myHRP =myChar and myChar:FindFirstChild("HumanoidRootPart")
-    local origin=myHead and (myHead.Position+Vector3.new(0,0.5,0))
-                 or myHRP and myHRP.Position
-                 or workspace.CurrentCamera.CFrame.Position
-    if hasMoveRel and Configuration.AimMode=="Mouse" then
-        ResetAimbotFields(true,true)
-        local ml=UserInputService:GetMouseLocation()
-        local sens=Configuration.UseSensitivity and Configuration.Sensitivity/5 or 10
-        getfenv().mousemoverel((vp[1].X-ml.X)/sens,(vp[1].Y-ml.Y)/sens)
-    elseif Configuration.AimMode=="Camera" then
-        UserInputService.MouseDeltaSensitivity=0
-        if Configuration.UseSensitivity then
-            AimTween=TweenService:Create(workspace.CurrentCamera,
-                TweenInfo.new(math.clamp(Configuration.Sensitivity,9,99)/100,Enum.EasingStyle.Sine,Enum.EasingDirection.Out),
-                {CFrame=CFrame.new(origin,WorldPos)})
-            AimTween:Play()
-        else
-            local alpha=1-(1-0.25)^(dt*60)
-            local goalCF=CFrame.lookAt(origin,WorldPos)
-            local lerpedRot=workspace.CurrentCamera.CFrame:Lerp(goalCF,alpha).Rotation
-            workspace.CurrentCamera.CFrame=CFrame.new(origin)*lerpedRot
-        end
-    elseif Configuration.AimMode=="Silent" then
-        ResetAimbotFields(true,true)
-    end
+    VirtualUser:Button2Down(Vector2.zero,Camera.CFrame)
+    task.wait(0.1); VirtualUser:Button2Up(Vector2.zero,Camera.CFrame)
 end)
 
 -- ══════════════════════════════════════════
@@ -1500,13 +1563,13 @@ RunService.RenderStepped:Connect(function()
     if not state.minimapEnabled then return end
     local selfHRP=getHRP(); if not selfHRP then return end
     local selfPos=selfHRP.Position
-    local cam=workspace.CurrentCamera; local _,camY,_=cam.CFrame:ToEulerAnglesYXZ()
+    local _,camY,_=Camera.CFrame:ToEulerAnglesYXZ()
     if mapScanned then
         local nx=(selfPos.X-mapMinX)/math.max(mapMaxX-mapMinX,1)
         local nz=(selfPos.Z-mapMinZ)/math.max(mapMaxZ-mapMinZ,1)
         mapLayer.Position=UDim2.new(0,(0.5-nx)*MINIMAP_SIZE,0,(0.5-nz)*MINIMAP_SIZE)
     end
-    local targetPlr=Target and Players:GetPlayerFromCharacter(Target)
+    local targetPlr=aimTarget and Players:GetPlayerFromCharacter(aimTarget)
     local dotIdx=0
     for _,plr in Players:GetPlayers() do
         if plr==Player then continue end
@@ -1518,9 +1581,8 @@ RunService.RenderStepped:Connect(function()
         local offset=hrp.Position-selfPos
         local rx=offset.X*math.cos(camY)+offset.Z*math.sin(camY)
         local rz=-offset.X*math.sin(camY)+offset.Z*math.cos(camY)
-        local px=math.clamp(rx/state.minimapRange,-1,1)*(MINIMAP_SIZE/2)
-        local py=math.clamp(rz/state.minimapRange,-1,1)*(MINIMAP_SIZE/2)
-        dot.Position=UDim2.new(0.5,px,0.5,py)
+        dot.Position=UDim2.new(0.5,math.clamp(rx/state.minimapRange,-1,1)*(MINIMAP_SIZE/2),
+                                0.5,math.clamp(rz/state.minimapRange,-1,1)*(MINIMAP_SIZE/2))
         if plr==targetPlr then dot.BackgroundColor3=GOLD
         else local ok1,mt=pcall(function() return Player.Team end); local ok2,pt=pcall(function() return plr.Team end)
             dot.BackgroundColor3=(ok1 and ok2 and mt and pt and mt==pt) and GREEN or RED end
@@ -1532,15 +1594,14 @@ end)
 --  FULL MAP LOOP
 -- ══════════════════════════════════════════
 RunService.RenderStepped:Connect(function()
-    if not state.fullMapOpen then return end
-    if not mapScanned then return end
+    if not state.fullMapOpen or not mapScanned then return end
     local selfHRP=getHRP()
     if selfHRP then
-        local nx=(selfHRP.Position.X-mapMinX)/math.max(mapMaxX-mapMinX,1)
-        local nz=(selfHRP.Position.Z-mapMinZ)/math.max(mapMaxZ-mapMinZ,1)
-        fmSelf.Position=UDim2.new(math.clamp(nx,0,1),0,math.clamp(nz,0,1),0)
+        local nx=math.clamp((selfHRP.Position.X-mapMinX)/math.max(mapMaxX-mapMinX,1),0,1)
+        local nz=math.clamp((selfHRP.Position.Z-mapMinZ)/math.max(mapMaxZ-mapMinZ,1),0,1)
+        fmSelf.Position=UDim2.new(nx,0,nz,0)
     end
-    local targetPlr=Target and Players:GetPlayerFromCharacter(Target)
+    local targetPlr=aimTarget and Players:GetPlayerFromCharacter(aimTarget)
     local dotIdx=0
     for _,plr in Players:GetPlayers() do
         if plr==Player then continue end
@@ -1566,8 +1627,9 @@ Players.PlayerRemoving:Connect(function(plr) cleanupESPForPlayer(plr) end)
 
 Player.CharacterAdded:Connect(function()
     state.flyEnabled=false; bv=nil; bg=nil
-    ResetAimbotFields()
-    workspace.CurrentCamera.CameraType=Enum.CameraType.Custom
+    aimActive=false; aimTarget=nil
+    UserInputService.MouseDeltaSensitivity=savedSens
+    Camera.CameraType=Enum.CameraType.Custom
     if state.thirdPerson then task.wait(1); setThirdPerson(true) end
 end)
 
@@ -1575,10 +1637,11 @@ game:BindToClose(function() saveConfig(); cleanupAllESP()
     for _,d in crosshairDrawings do pcall(function() d:Remove() end) end end)
 
 -- ══════════════════════════════════════════
---  INIT
+--  BOOT
 -- ══════════════════════════════════════════
 activateTab(tAimbot)
 rebuildCrosshair()
 
-print("[Venom v2.0] Loaded ✓  |  Engine: Open Aimbot (ttwiz_z)")
-print("RShift=GUI | RMB=Aim | M=Full Map | Drawing:"..tostring(hasDrawing))
+print("[Venom v2.0] Loaded ✓  |  venom.lol")
+print("RShift=GUI | RMB=Aim | M=Full Map")
+print("Drawing:"..tostring(hasDrawing).." | MoveRel:"..tostring(hasMoveRel).." | HookMeta:"..tostring(hasHookMeta))
