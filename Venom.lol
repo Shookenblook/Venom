@@ -1,8 +1,4 @@
--- Venom.lol GUI v2.0
--- Engine: Open Aimbot (ttwiz_z) | Shell: Venom
--- Features: Whitelist, Spinbot, Triggerbot, Hitbox Expander, Bunny Hop,
---           Third Person, Custom Crosshair (Drawing), ESP Distance, Auto Rejoin,
---           Fake Lag, Bhop+AutoSprint, Full Fortnite-style Map (press M)
+--venom im finna bust olmllllllllllllllllllllllllll
 
 local Players          = game:GetService("Players")
 local TweenService     = game:GetService("TweenService")
@@ -26,17 +22,45 @@ local IsComputer = UserInputService.KeyboardEnabled and UserInputService.MouseEn
 local NGROK_URL = "https://subventionary-letha-boughten.ngrok-free.dev"
 
 local function CheckWhitelist()
-    local success, response = pcall(function()
-        return game:HttpGet(
-            NGROK_URL .. "/check?rbxid=" .. tostring(Player.UserId),
-            true
-        )
-    end)
+    local response = nil
 
-    if not success then
-        warn("[Venom] Whitelist check failed:", response)
-        return false
+    -- FIX 1: Use request() with ngrok-skip-browser-warning header if available
+    -- This prevents ngrok from returning an HTML interstitial page instead of "valid"
+    if getfenv().request then
+        local ok, res = pcall(function()
+            return request({
+                Url     = NGROK_URL .. "/check?rbxid=" .. tostring(Player.UserId),
+                Method  = "GET",
+                Headers = {
+                    ["ngrok-skip-browser-warning"] = "true",
+                },
+            })
+        end)
+        if ok and res and res.Body then
+            response = res.Body
+        end
     end
+
+    -- FIX 2: Fallback to game:HttpGet if request() not available
+    if not response then
+        local ok, res = pcall(function()
+            return game:HttpGet(
+                NGROK_URL .. "/check?rbxid=" .. tostring(Player.UserId),
+                true
+            )
+        end)
+        if ok then
+            response = res
+        else
+            warn("[Venom] Whitelist check failed:", res)
+            return false
+        end
+    end
+
+    -- FIX 3: Trim whitespace/newlines before comparing
+    -- ngrok sometimes adds \n or spaces which breaks == "valid"
+    response = tostring(response):match("^%s*(.-)%s*$")
+    warn("[Venom] Whitelist response:", response) -- shows in executor console for debugging
 
     return response == "valid"
 end
@@ -749,24 +773,6 @@ local function rebuildCrosshair()
 end
 
 RunService.RenderStepped:Connect(function()
-    if not state.crosshair or not hasDrawing or #crosshairDrawings==0 then return end
-    local vp=workspace.CurrentCamera.ViewportSize
-    local cx,cy=vp.X/2,vp.Y/2
-    for _,d in crosshairDrawings do
-        if d.From~=nil then -- Line
-            local base=Vector2.new(cx,cy)
-            if d.From.X<0 or d.From.Y<0 or (d.From.X==0 and d.From.Y~=0) then
-                -- recalculate per-line offset stored at creation via closure
-                -- just update center-relative positions
-            end
-        elseif d.Position~=nil then -- Circle
-            d.Position=Vector2.new(cx,cy)
-        end
-    end
-end)
-
--- We rebuild with absolute coords each frame
-RunService.RenderStepped:Connect(function()
     if not state.crosshair or not hasDrawing then return end
     if #crosshairDrawings==0 then return end
     local vp=workspace.CurrentCamera.ViewportSize
@@ -1341,18 +1347,12 @@ addR(tConfig, TL("Mouse1Click: "..(hasMouse1Click and "✔" or "✘"),true))
 -- ══════════════════════════════════════════
 UserInputService.InputBegan:Connect(function(inp,gpe)
     if gpe then return end
-
-    -- GUI toggle
     if inp.KeyCode==Enum.KeyCode.RightShift then Win.Visible=not Win.Visible; return end
-
-    -- Full map toggle [M]
     if inp.KeyCode==Enum.KeyCode.M then
         state.fullMapOpen=not state.fullMapOpen
         FullMapFrame.Visible=state.fullMapOpen
         return
     end
-
-    -- Aimbot key (RMB)
     local aimMatch=(inp.UserInputType==Enum.UserInputType.MouseButton2)
         or (typeof(Configuration.AimKey)=="EnumItem" and inp.KeyCode==Configuration.AimKey)
     if Configuration.Aimbot and aimMatch then
@@ -1360,9 +1360,6 @@ UserInputService.InputBegan:Connect(function(inp,gpe)
             if Aiming then ResetAimbotFields() else Aiming=true end
         else Aiming=true end
     end
-
-    -- SpinBot hold key (Spin is toggled via tab)
-    -- TriggerBot hold key
 end)
 
 UserInputService.InputEnded:Connect(function(inp)
@@ -1376,8 +1373,6 @@ end)
 -- ══════════════════════════════════════════
 --  RUNTIME LOOPS
 -- ══════════════════════════════════════════
-
--- Fly
 RunService.RenderStepped:Connect(function()
     if not state.flyEnabled or not bv or not bg then return end
     local cam=workspace.CurrentCamera; local dir=Vector3.zero
@@ -1390,20 +1385,17 @@ RunService.RenderStepped:Connect(function()
     bv.Velocity=dir*60; bg.CFrame=cam.CFrame
 end)
 
--- Noclip
 RunService.Stepped:Connect(function()
     if not state.noclip then return end
     local c=Player.Character; if not c then return end
     for _,p in c:GetDescendants() do if p:IsA("BasePart") then p.CanCollide=false end end
 end)
 
--- Infinite jump
 UserInputService.JumpRequest:Connect(function()
     if not state.infiniteJump then return end
     local hum=getHum(); if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
 end)
 
--- Bunny hop
 RunService.Heartbeat:Connect(function()
     if not state.bunnyhop then return end
     local hum=getHum(); if not hum then return end
@@ -1412,7 +1404,6 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- Speed / God / Jump / Sprint
 RunService.Heartbeat:Connect(function()
     local hum=getHum(); if not hum then return end
     if state.godMode then hum.Health=hum.MaxHealth end
@@ -1422,7 +1413,6 @@ RunService.Heartbeat:Connect(function()
     hum.JumpPower=state.jumpPower
 end)
 
--- Anti-AFK
 Player.Idled:Connect(function()
     if not state.antiAfk then return end
     VirtualUser:Button2Down(Vector2.zero, workspace.CurrentCamera.CFrame)
@@ -1430,29 +1420,23 @@ Player.Idled:Connect(function()
 end)
 
 -- ══════════════════════════════════════════
---  OPEN AIMBOT + SPINBOT + TRIGGERBOT LOOP
+--  AIMBOT + SPINBOT + TRIGGERBOT LOOP
 -- ══════════════════════════════════════════
 RunService.RenderStepped:Connect(function(dt)
-    -- SpinBot
     if Configuration.SpinBot and Configuration.SpinPart and Player.Character then
         local part=Player.Character:FindFirstChild(Configuration.SpinPart)
         if part and part:IsA("BasePart") then
             part.CFrame=part.CFrame*CFrame.fromEulerAnglesXYZ(0,math.rad(Configuration.SpinBotVelocity),0)
         end
     end
-
-    -- TriggerBot
     if hasMouse1Click and Configuration.TriggerBot and (not Configuration.SmartTriggerBot or Aiming) then
         local tgt=Mouse.Target
         if tgt and IsReady(tgt:FindFirstAncestorWhichIsA("Model")) and MathHandler:CalculateChance(Configuration.TriggerBotChance) then
             getfenv().mouse1click()
         end
     end
-
-    -- Aimbot
     if not Configuration.Aimbot and Aiming then ResetAimbotFields(); return end
     if not Aiming then return end
-
     if not IsReady(Target) then
         if Target and Configuration.OffAimbotAfterKill then ResetAimbotFields(); return end
         Target=nil; local closest=math.huge
@@ -1465,18 +1449,14 @@ RunService.RenderStepped:Connect(function(dt)
             end
         end
     end
-
     local ok,_,vp,WorldPos=IsReady(Target)
     if not ok or not vp[2] then ResetAimbotFields(true); return end
-
-    -- FIX: use player head as camera origin so camera follows player
     local myChar=Player.Character
     local myHead=myChar and myChar:FindFirstChild("Head")
     local myHRP =myChar and myChar:FindFirstChild("HumanoidRootPart")
     local origin=myHead and (myHead.Position+Vector3.new(0,0.5,0))
                  or myHRP and myHRP.Position
                  or workspace.CurrentCamera.CFrame.Position
-
     if hasMoveRel and Configuration.AimMode=="Mouse" then
         ResetAimbotFields(true,true)
         local ml=UserInputService:GetMouseLocation()
@@ -1549,7 +1529,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ══════════════════════════════════════════
---  FULL MAP LOOP  (when open)
+--  FULL MAP LOOP
 -- ══════════════════════════════════════════
 RunService.RenderStepped:Connect(function()
     if not state.fullMapOpen then return end
