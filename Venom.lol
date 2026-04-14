@@ -22,21 +22,23 @@ local IsComputer = UserInputService.KeyboardEnabled and UserInputService.MouseEn
 -- ══════════════════════════════════════════
 --  WHITELIST
 -- ══════════════════════════════════════════
+
 local NGROK_URL = "https://subventionary-letha-boughten.ngrok-free.dev"
 
 local function CheckWhitelist()
     local success, response = pcall(function()
-        return request({
-            Url    = NGROK_URL,
-            Method = "POST",
-            Headers = {
-                ["Content-Type"]               = "application/json",
-                ["ngrok-skip-browser-warning"] = "true",
-            },
-            Body = HttpService:JSONEncode({ roblox_id = Player.UserId }),
-        })
+        return game:HttpGet(
+            NGROK_URL .. "/check?rbxid=" .. tostring(Player.UserId),
+            true
+        )
     end)
-    return success and response and response.StatusCode == 200
+
+    if not success then
+        warn("[Venom] Whitelist check failed:", response)
+        return false
+    end
+
+    return response == "valid"
 end
 
 -- Splash screen
