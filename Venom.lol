@@ -1,7 +1,7 @@
 -- ══════════════════════════════════════════════════════════════════
---  blueblur  v3.0  |  BLUE-STYLE REWORK
---  Full aimbot engine · Glowing UI · Color-scan minimap
---  RShift=GUI | RMB=Aim | M=Full Map
+--  blueblur  v4.0  |  ULTIMATE EDITION
+--  Full aimbot · Combat · Teleport · World ESP · All Features
+--  RShift=GUI | RMB=Aim | M=Full Map | B=BunnyHop | Click=TP
 -- ══════════════════════════════════════════════════════════════════
 
 local Players          = game:GetService("Players")
@@ -83,7 +83,7 @@ SplashTitle.TextSize=28; SplashTitle.Font=Enum.Font.GothamBlack; SplashTitle.Par
 
 local SplashVer=Instance.new("TextLabel"); SplashVer.Size=UDim2.new(1,0,0,16)
 SplashVer.Position=UDim2.new(0,0,0,50); SplashVer.BackgroundTransparency=1
-SplashVer.Text="v3.0  —  BLUE EDITION"; SplashVer.TextColor3=Color3.fromRGB(60, 80, 120)
+SplashVer.Text="v4.0  —  ULTIMATE EDITION"; SplashVer.TextColor3=Color3.fromRGB(60, 80, 120)
 SplashVer.TextSize=11; SplashVer.Font=Enum.Font.GothamSemibold; SplashVer.Parent=SplashCard
 
 local SplashSub=Instance.new("TextLabel"); SplashSub.Size=UDim2.new(1,-20,0,18)
@@ -164,7 +164,7 @@ local C = {
 }
 local TWEEN_FAST  = TweenInfo.new(0.15, Enum.EasingStyle.Quad)
 local TWEEN_MED   = TweenInfo.new(0.25, Enum.EasingStyle.Quad)
-local CONFIG_FILE = "blueblur_config.json"
+local CONFIG_FILE = "blueblur_config_v4.json"
 
 -- ══════════════════════════════════════════
 --  AIMBOT STATE
@@ -191,6 +191,7 @@ local aimToggleState=false; local onePressConsumed=false
 local state = {
     esp=false, espBoxes=true, espNames=true, espHealth=true,
     espTracers=false, espDistance=true, espChams=false,
+    espChamRainbow=false, espChamFresnel=false, espXRay=false,
     fullbright=false, noFog=false, noShadows=false,
     flyEnabled=false, noclip=false, infiniteJump=false,
     speedBoost=false, walkSpeed=16, jumpPower=50,
@@ -203,6 +204,31 @@ local state = {
     autoRejoin=false,
     minimapEnabled=true, minimapRange=300,
     fullMapOpen=false,
+    -- COMBAT FEATURES
+    silentTeleport=false, silentTpDistance=50,
+    antiLock=false, antiAimAngle=180,
+    reachEnabled=false, reachAmount=20,
+    autoParry=false, autoDodge=false,
+    weaponAura=false, weaponAuraRange=25,
+    -- UTILITY FEATURES
+    clickTp=false, teleportToPlayer="None",
+    serverHop=false, copyCoords=false,
+    antiVoid=false, voidHeight=-50,
+    antiStomp=false, antiRagdoll=false,
+    -- VISUAL FEATURES
+    worldEsp=false, worldEspChests=false, worldEspItems=false,
+    worldEspDoors=false, worldEspObjectives=false,
+    soundEsp=false, soundEspRange=100,
+    speedOverlay=false,
+    playerList=false, killFeed=false,
+    sessionInfo=false,
+    -- QOL FEATURES
+    streamerMode=false,
+    hotkeyCombo=false, hotkeyKey="G",
+    matchAutoAccept=false, matchAutoQueue=false,
+    autoEquip=false,
+    -- WORLD ESP OBJECTS CACHE
+    worldEspObjects={},
 }
 local bv,bg
 local tracerThickness=1
@@ -651,7 +677,7 @@ local fmFix=Instance.new("Frame"); fmFix.Size=UDim2.new(1,0,0,14); fmFix.Positio
 fmFix.BackgroundColor3=Color3.fromRGB(8, 8, 22); fmFix.BorderSizePixel=0; fmFix.ZIndex=51; fmFix.Parent=fmHeader
 local fmTitle=Instance.new("TextLabel"); fmTitle.Size=UDim2.new(1,-50,1,0)
 fmTitle.Position=UDim2.new(0,16,0,0); fmTitle.BackgroundTransparency=1
-fmTitle.Text="🗺  blueblur  —  FULL MAP  [M to close]"; fmTitle.TextColor3=C.BLUE
+fmTitle.Text="🗺  blueblur  v4.0  —  FULL MAP  [M to close]"; fmTitle.TextColor3=C.BLUE
 fmTitle.TextSize=15; fmTitle.Font=Enum.Font.GothamBlack; fmTitle.TextXAlignment=Enum.TextXAlignment.Left; fmTitle.ZIndex=52; fmTitle.Parent=fmHeader
 local fmClose=Instance.new("TextButton"); fmClose.Size=UDim2.new(0,26,0,26); fmClose.Position=UDim2.new(1,-34,0.5,-13)
 fmClose.BackgroundColor3=Color3.fromRGB(50,15,22); fmClose.Text="✕"; fmClose.TextColor3=C.RED
@@ -913,8 +939,8 @@ setupAutoRejoin()
 -- ══════════════════════════════════════════
 --  MAIN WINDOW  (Reign-style layout) - BLUE THEME
 -- ══════════════════════════════════════════
-local WIN_W,WIN_H=500,540
-local Win=Instance.new("Frame"); Win.Name="VenomWin"
+local WIN_W,WIN_H=880,540
+local Win=Instance.new("Frame"); Win.Name="BlueBlurWin"
 Win.Size=UDim2.new(0,WIN_W,0,WIN_H)
 Win.Position=UDim2.new(0.5,-WIN_W/2,0.5,-WIN_H/2)
 Win.BackgroundColor3=C.BG; Win.BorderSizePixel=0; Win.Active=true; Win.Parent=ScreenGui
@@ -950,7 +976,7 @@ Logo.BackgroundTransparency=1; Logo.Text="blueblur"; Logo.TextColor3=C.BLUE
 Logo.TextSize=17; Logo.Font=Enum.Font.GothamBlack; Logo.TextXAlignment=Enum.TextXAlignment.Left; Logo.ZIndex=3; Logo.Parent=TitleBar
 
 local LogoSub=Instance.new("TextLabel"); LogoSub.Size=UDim2.new(0,40,1,0); LogoSub.Position=UDim2.new(0,116,0,0)
-LogoSub.BackgroundTransparency=1; LogoSub.Text="v3.0"; LogoSub.TextColor3=C.SUBTEXT
+LogoSub.BackgroundTransparency=1; LogoSub.Text="v4.0"; LogoSub.TextColor3=C.SUBTEXT
 LogoSub.TextSize=10; LogoSub.Font=Enum.Font.GothamSemibold; LogoSub.TextXAlignment=Enum.TextXAlignment.Left; LogoSub.ZIndex=3; LogoSub.Parent=TitleBar
 
 -- Status indicator (animated dot)
@@ -994,7 +1020,7 @@ MinBtn.MouseButton1Click:Connect(function()
 end)
 
 -- Tab bar (in title bar, Reign-style)
-local TabBarFrame=Instance.new("Frame"); TabBarFrame.Size=UDim2.new(1,-120,1,0); TabBarFrame.Position=UDim2.new(0,10,0,0)
+local TabBarFrame=Instance.new("Frame"); TabBarFrame.Size=UDim2.new(1,-340,1,0); TabBarFrame.Position=UDim2.new(0,250,0,0)
 TabBarFrame.BackgroundTransparency=1; TabBarFrame.ZIndex=3; TabBarFrame.Parent=TitleBar
 local TabBarLayout=Instance.new("UIListLayout"); TabBarLayout.FillDirection=Enum.FillDirection.Horizontal
 TabBarLayout.SortOrder=Enum.SortOrder.LayoutOrder; TabBarLayout.Padding=UDim.new(0,2)
@@ -1012,8 +1038,8 @@ UserInputService.InputChanged:Connect(function(i)
 local Body=Instance.new("Frame"); Body.Size=UDim2.new(1,0,1,-42); Body.Position=UDim2.new(0,0,0,42)
 Body.BackgroundTransparency=1; Body.Parent=Win
 
--- Left sidebar (full width, single column layout)
-local LeftPanel=Instance.new("Frame"); LeftPanel.Size=UDim2.new(1,0,1,0)
+-- Left sidebar (280px wide)
+local LeftPanel=Instance.new("Frame"); LeftPanel.Size=UDim2.new(0,280,1,0)
 LeftPanel.BackgroundColor3=C.BG2; LeftPanel.BorderSizePixel=0; LeftPanel.Parent=Body
 local LeftStroke=Instance.new("UIStroke",LeftPanel); LeftStroke.Color=C.BLUE_DARK; LeftStroke.ApplyStrokeMode=Enum.ApplyStrokeMode.Border
 
@@ -1025,16 +1051,20 @@ local LL=Instance.new("UIListLayout"); LL.SortOrder=Enum.SortOrder.LayoutOrder; 
 local LP=Instance.new("UIPadding"); LP.PaddingLeft=UDim.new(0,8); LP.PaddingRight=UDim.new(0,8)
 LP.PaddingTop=UDim.new(0,8); LP.PaddingBottom=UDim.new(0,8); LP.Parent=LeftScroll
 
--- Right panel (hidden - single column)
-local RightPanel=Instance.new("Frame"); RightPanel.Size=UDim2.new(1,0,1,0); RightPanel.Position=UDim2.new(0,0,0,0)
-RightPanel.BackgroundColor3=C.BG; RightPanel.BorderSizePixel=0; RightPanel.Visible=false; RightPanel.Parent=Body
+-- Divider line
+local Divider=Instance.new("Frame"); Divider.Size=UDim2.new(0,1,1,0); Divider.Position=UDim2.new(0,280,0,0)
+Divider.BackgroundColor3=C.BLUE_DARK; Divider.BackgroundTransparency=0.5; Divider.BorderSizePixel=0; Divider.Parent=Body
 
-local RightScroll=Instance.new("ScrollingFrame"); RightScroll.Size=UDim2.new(1,-4,1,-6); RightScroll.Position=UDim2.new(0,2,0,3)
+-- Right panel (fills remaining space)
+local RightPanel=Instance.new("Frame"); RightPanel.Size=UDim2.new(1,-282,1,0); RightPanel.Position=UDim2.new(0,282,0,0)
+RightPanel.BackgroundColor3=C.BG; RightPanel.BorderSizePixel=0; RightPanel.Parent=Body
+
+local RightScroll=Instance.new("ScrollingFrame"); RightScroll.Size=UDim2.new(1,-16,1,-6); RightScroll.Position=UDim2.new(0,8,0,3)
 RightScroll.BackgroundTransparency=1; RightScroll.BorderSizePixel=0; RightScroll.ScrollBarThickness=2
 RightScroll.ScrollBarImageColor3=C.BLUE; RightScroll.AutomaticCanvasSize=Enum.AutomaticSize.Y
 RightScroll.CanvasSize=UDim2.new(0,0,0,0); RightScroll.Parent=RightPanel
 local RL=Instance.new("UIListLayout"); RL.SortOrder=Enum.SortOrder.LayoutOrder; RL.Padding=UDim.new(0,2); RL.Parent=RightScroll
-local RP=Instance.new("UIPadding"); RP.PaddingLeft=UDim.new(0,12); RP.PaddingRight=UDim.new(0,12)
+local RP=Instance.new("UIPadding"); RP.PaddingLeft=UDim.new(0,8); RP.PaddingRight=UDim.new(0,8)
 RP.PaddingTop=UDim.new(0,8); RP.PaddingBottom=UDim.new(0,8); RP.Parent=RightScroll
 
 -- ══════════════════════════════════════════
@@ -1233,12 +1263,13 @@ local function addR(t,i) table.insert(t.rightItems,i) end
 --  BUILD TABS
 -- ══════════════════════════════════════════
 local tAimbot  = makeTabBtn("AIMBOT",  1)
-local tBots    = makeTabBtn("BOTS",    2)
-local tChecks  = makeTabBtn("CHECKS",  3)
+local tCombat  = makeTabBtn("COMBAT",  2)
+local tTeleport = makeTabBtn("TELEPORT", 3)
 local tVisuals = makeTabBtn("VISUALS", 4)
-local tMove    = makeTabBtn("MOVE",    5)
-local tAddons  = makeTabBtn("ADDONS",  6)
-local tConfig  = makeTabBtn("CONFIG",  7)
+local tWorld   = makeTabBtn("WORLD",   5)
+local tMove    = makeTabBtn("MOVE",    6)
+local tExtras  = makeTabBtn("EXTRAS",  7)
+local tConfig  = makeTabBtn("CONFIG",  8)
 
 -- ─── AIMBOT ───
 addL(tAimbot,SL("Core Settings",false))
@@ -1246,49 +1277,83 @@ addL(tAimbot,TG("Enable Aimbot","RMB",Aim.enabled,function(on) Aim.enabled=on; i
 addL(tAimbot,DD("Aim Mode",{"Camera","Mouse","Silent"},Aim.mode,function(v) Aim.mode=v end,false))
 addL(tAimbot,DD("Aim Part",{"Head","HumanoidRootPart","Torso","UpperTorso"},Aim.aimPart,function(v) Aim.aimPart=v; aimTarget=nil end,false))
 addL(tAimbot,DD("Key Mode",{"Hold","Toggle","OnePress"},Aim.keyMode,function(v) Aim.keyMode=v; aimActive=false; aimTarget=nil end,false))
-addL(tAimbot,SL("Field of View",false))
-addL(tAimbot,TG("Enable FOV","",Aim.fovEnabled,function(on) Aim.fovEnabled=on end,false))
-addL(tAimbot,TG("Show FOV Circle","",Aim.showFov,function(on) Aim.showFov=on end,false))
-addL(tAimbot,SLD("FOV Radius",10,600,Aim.fovRadius,"px",function(v) Aim.fovRadius=v end,false))
+addR(tAimbot,SL("Field of View",true))
+addR(tAimbot,TG("Enable FOV","",Aim.fovEnabled,function(on) Aim.fovEnabled=on end,true))
+addR(tAimbot,TG("Show FOV Circle","",Aim.showFov,function(on) Aim.showFov=on end,true))
+addR(tAimbot,SLD("FOV Radius",10,600,Aim.fovRadius,"px",function(v) Aim.fovRadius=v end,true))
 addL(tAimbot,SL("Smoothing",false))
 addL(tAimbot,TG("Enable Smoothing","",Aim.smoothEnabled,function(on) Aim.smoothEnabled=on end,false))
 addL(tAimbot,SLD("Smooth Amount",1,100,math.round(Aim.smoothAmount*100),"%",function(v) Aim.smoothAmount=v/100 end,false))
-addL(tAimbot,SL("Prediction",false))
-addL(tAimbot,TG("Enable Prediction","",Aim.predictEnabled,function(on) Aim.predictEnabled=on end,false))
-addL(tAimbot,SLD("Predict Amount",1,30,math.round(Aim.predictAmount*100),"ms",function(v) Aim.predictAmount=v/100 end,false))
-addL(tAimbot,SL("Silent Aim",false))
-addL(tAimbot,hasHookMeta and TL("✔ Silent hooks installed",false) or TL("⚠ hookmetamethod not available",false))
-addL(tAimbot,SLD("Silent Chance",1,100,Aim.silentChance,"%",function(v) Aim.silentChance=v end,false))
-addL(tAimbot,SL("Range",false))
-addL(tAimbot,SLD("Max Distance",0,2000,Aim.maxDist,"st",function(v) Aim.maxDist=v end,false))
-addL(tAimbot,TL("0 = unlimited range",false))
+addR(tAimbot,SL("Prediction",true))
+addR(tAimbot,TG("Enable Prediction","",Aim.predictEnabled,function(on) Aim.predictEnabled=on end,true))
+addR(tAimbot,SLD("Predict Amount",1,30,math.round(Aim.predictAmount*100),"ms",function(v) Aim.predictAmount=v/100 end,true))
+addR(tAimbot,SL("Silent Aim",true))
+addR(tAimbot,hasHookMeta and TL("✔ Silent hooks installed",true) or TL("⚠ hookmetamethod not available",true))
+addR(tAimbot,SLD("Silent Chance",1,100,Aim.silentChance,"%",function(v) Aim.silentChance=v end,true))
+addR(tAimbot,SL("Range",true))
+addR(tAimbot,SLD("Max Distance",0,2000,Aim.maxDist,"st",function(v) Aim.maxDist=v end,true))
+addR(tAimbot,TL("0 = unlimited range",true))
 
--- ─── BOTS ───
-addL(tBots,SL("SpinBot",false))
-addL(tBots,TG("Enable SpinBot","",Aim.spinEnabled,function(on) Aim.spinEnabled=on end,false))
-addL(tBots,SLD("Spin Speed",1,100,Aim.spinSpeed,"°/f",function(v) Aim.spinSpeed=v end,false))
-addL(tBots,DD("Spin Part",{"Head","HumanoidRootPart"},Aim.spinPart,function(v) Aim.spinPart=v end,false))
-addL(tBots,SL("TriggerBot",false))
+-- ─── COMBAT ───
+addL(tCombat,SL("SpinBot",false))
+addL(tCombat,TG("Enable SpinBot","",Aim.spinEnabled,function(on) Aim.spinEnabled=on end,false))
+addL(tCombat,SLD("Spin Speed",1,100,Aim.spinSpeed,"°/f",function(v) Aim.spinSpeed=v end,false))
+addL(tCombat,DD("Spin Part",{"Head","HumanoidRootPart"},Aim.spinPart,function(v) Aim.spinPart=v end,false))
+addR(tCombat,SL("TriggerBot",true))
 if hasMouse1Click then
-    addL(tBots,TG("Enable TriggerBot","",Aim.triggerEnabled,function(on) Aim.triggerEnabled=on end,false))
-    addL(tBots,TG("Smart Mode (aiming only)","",Aim.triggerSmartOnly,function(on) Aim.triggerSmartOnly=on end,false))
-    addL(tBots,SLD("Hit Chance",1,100,Aim.triggerChance,"%",function(v) Aim.triggerChance=v end,false))
+    addR(tCombat,TG("Enable TriggerBot","",Aim.triggerEnabled,function(on) Aim.triggerEnabled=on end,true))
+    addR(tCombat,TG("Smart Mode (aiming only)","",Aim.triggerSmartOnly,function(on) Aim.triggerSmartOnly=on end,true))
+    addR(tCombat,SLD("Hit Chance",1,100,Aim.triggerChance,"%",function(v) Aim.triggerChance=v end,true))
 else
-    addL(tBots,TL("⚠ mouse1click not available",false))
+    addR(tCombat,TL("⚠ mouse1click not available",true))
 end
+addL(tCombat,SL("Anti-Lock",false))
+addL(tCombat,TG("Enable Anti-Lock","",state.antiLock,function(on) state.antiLock=on end,false))
+addL(tCombat,SLD("Fake Angle",1,360,state.antiAimAngle,"°",function(v) state.antiAimAngle=v end,false))
+addR(tCombat,SL("Reach",true))
+addR(tCombat,TG("Enable Reach","",state.reachEnabled,function(on) state.reachEnabled=on end,true))
+addR(tCombat,SLD("Reach Distance",1,100,state.reachAmount,"st",function(v) state.reachAmount=v end,true))
+addL(tCombat,SL("Hitbox Expander",false))
+addL(tCombat,TG("Enable Hitbox","",state.hitboxExpander,function(on) state.hitboxExpander=on; applyHitboxes(on) end,false))
+addL(tCombat,SLD("Hitbox Size",2,20,state.hitboxSize,"st",function(v) state.hitboxSize=v; if state.hitboxExpander then applyHitboxes(true) end end,false))
 
--- ─── CHECKS ───
-addL(tChecks,SL("Target Filters",false))
-addL(tChecks,TG("Alive Check","",Aim.checkAlive,function(on) Aim.checkAlive=on end,false))
-addL(tChecks,TG("God Mode Skip","",Aim.checkGod,function(on) Aim.checkGod=on end,false))
-addL(tChecks,TG("Team Check","",Aim.checkTeam,function(on) Aim.checkTeam=on end,false))
-addL(tChecks,TG("Friend Check","",Aim.checkFriend,function(on) Aim.checkFriend=on end,false))
-addL(tChecks,TG("Wall / LoS Check","",Aim.checkWall,function(on) Aim.checkWall=on end,false))
-addL(tChecks,SL("Notes",false))
-addL(tChecks,TL("All enabled checks must pass",false))
-addL(tChecks,TL("Checks run every render frame",false))
-addL(tChecks,TL("Max Distance is set in Aimbot tab",false))
-addL(tChecks,TL("Wall check uses workspace raycast",false))
+-- ─── TELEPORT ───
+addL(tTeleport,SL("Click Teleport",false))
+addL(tTeleport,TG("Enable Click TP","",state.clickTp,function(on) state.clickTp=on end,false))
+addL(tTeleport,TL("Click anywhere to teleport",false))
+addR(tTeleport,SL("Teleport to Player",true))
+local tpPlayers={"None"}
+for _,p in Players:GetPlayers() do if p~=Player then table.insert(tpPlayers,p.Name) end end
+addR(tTeleport,DD("Select Player",tpPlayers,"None",function(v) state.teleportToPlayer=v end,true))
+local tpBtn=Instance.new("TextButton"); tpBtn.Size=UDim2.new(1,0,0,30); tpBtn.BackgroundColor3=C.BLUE_DARK
+tpBtn.BorderSizePixel=0; tpBtn.Text="TP to Player"; tpBtn.TextColor3=C.BLUE
+tpBtn.TextSize=11; tpBtn.Font=Enum.Font.GothamSemibold; tpBtn.Visible=false
+RO+=1; tpBtn.LayoutOrder=RO; tpBtn.Parent=RightScroll
+Instance.new("UICorner",tpBtn).CornerRadius=UDim.new(0,5)
+Instance.new("UIStroke",tpBtn).Color=C.BLUE_DIM
+tpBtn.MouseButton1Click:Connect(function()
+    if state.teleportToPlayer~="None" then
+        local target=Players:FindFirstChild(state.teleportToPlayer)
+        if target and target.Character then
+            local hrp=target.Character:FindFirstChild("HumanoidRootPart")
+            local myHRP=getHRP()
+            if hrp and myHRP then myHRP.CFrame=hrp.CFrame*CFrame.new(0,0,3) end
+        end
+    end
+end)
+table.insert(tTeleport.rightItems,tpBtn)
+addL(tTeleport,SL("Server Utilities",false))
+addL(tTeleport,TG("Server Hop","",state.serverHop,function(on) state.serverHop=on end,false))
+addL(tTeleport,TG("Copy Coords","",state.copyCoords,function(on) state.copyCoords=on end,false))
+addL(tTeleport,TL("Copies your position to clipboard",false))
+addR(tTeleport,SL("Protection",true))
+addR(tTeleport,TG("Anti-Void","",state.antiVoid,function(on) state.antiVoid=on end,true))
+addR(tTeleport,SLD("Void Height",-500,100,state.voidHeight,"",function(v) state.voidHeight=v end,true))
+addR(tTeleport,TG("Anti-Stomp","",state.antiStomp,function(on) state.antiStomp=on end,true))
+addR(tTeleport,TG("Anti-Ragdoll","",state.antiRagdoll,function(on) state.antiRagdoll=on end,true))
+addL(tTeleport,SL("Fake Lag",false))
+addL(tTeleport,TG("Enable Fake Lag","",state.fakelag,function(on) state.fakelag=on; setFakeLag(on) end,false))
+addL(tTeleport,SLD("Lag Amount",1,20,state.fakelagAmount,"f",function(v) state.fakelagAmount=v end,false))
 
 -- ─── VISUALS ───
 addL(tVisuals,SL("ESP",false))
@@ -1298,22 +1363,38 @@ addL(tVisuals,TG("Names","",state.espNames,function(on) state.espNames=on end,fa
 addL(tVisuals,TG("Health Bars","",state.espHealth,function(on) state.espHealth=on end,false))
 addL(tVisuals,TG("Tracers","",state.espTracers,function(on) state.espTracers=on end,false))
 addL(tVisuals,TG("Distance Labels","",state.espDistance,function(on) state.espDistance=on end,false))
-addL(tVisuals,TG("Chams","",state.espChams,function(on) state.espChams=on
-    if not on then for _,p in Players:GetPlayers() do if p~=Player and p.Character then
-        for _,pt in p.Character:GetDescendants() do if pt:IsA("BasePart") then pt.Material=Enum.Material.SmoothPlastic end end end end end end,false))
 if not hasDrawing then addL(tVisuals,TL("⚠ Drawing API not available",false)) end
-addL(tVisuals,SL("World",false))
-addL(tVisuals,TG("Fullbright","",state.fullbright,function(on) state.fullbright=on
+addR(tVisuals,SL("World Lighting",true))
+addR(tVisuals,TG("Fullbright","",state.fullbright,function(on) state.fullbright=on
     Lighting.Brightness=on and 10 or 1
     Lighting.Ambient=on and Color3.fromRGB(255,255,255) or Color3.fromRGB(70,70,70)
-    Lighting.OutdoorAmbient=on and Color3.fromRGB(255,255,255) or Color3.fromRGB(127,127,127) end,false))
-addL(tVisuals,TG("No Fog","",state.noFog,function(on) state.noFog=on
-    local a=Lighting:FindFirstChildOfClass("Atmosphere"); if a then a.Density=on and 0 or 0.395 end end,false))
-addL(tVisuals,TG("No Shadows","",state.noShadows,function(on) state.noShadows=on; Lighting.GlobalShadows=not on end,false))
-addL(tVisuals,SL("Minimap",false))
-addL(tVisuals,TG("Show Minimap","",state.minimapEnabled,function(on) state.minimapEnabled=on; MinimapFrame.Visible=on end,false))
-addL(tVisuals,SLD("Radar Range",50,1000,state.minimapRange,"st",function(v)
-    state.minimapRange=v; mmLabel.Text="▣ RADAR  ·  "..v.."st  ·  [M] MAP" end,false))
+    Lighting.OutdoorAmbient=on and Color3.fromRGB(255,255,255) or Color3.fromRGB(127,127,127) end,true))
+addR(tVisuals,TG("No Fog","",state.noFog,function(on) state.noFog=on
+    local a=Lighting:FindFirstChildOfClass("Atmosphere"); if a then a.Density=on and 0 or 0.395 end end,true))
+addR(tVisuals,TG("No Shadows","",state.noShadows,function(on) state.noShadows=on; Lighting.GlobalShadows=not on end,true))
+addR(tVisuals,SL("Minimap",true))
+addR(tVisuals,TG("Show Minimap","",state.minimapEnabled,function(on) state.minimapEnabled=on; MinimapFrame.Visible=on end,true))
+addR(tVisuals,SLD("Radar Range",50,1000,state.minimapRange,"st",function(v)
+    state.minimapRange=v; mmLabel.Text="▣ RADAR  ·  "..v.."st  ·  [M] MAP" end,true))
+addR(tVisuals,SL("Overlays",true))
+addR(tVisuals,TG("Speed Overlay","",state.speedOverlay,function(on) state.speedOverlay=on end,true))
+addR(tVisuals,TG("Player List","",state.playerList,function(on) state.playerList=on end,true))
+addR(tVisuals,TG("Kill Feed","",state.killFeed,function(on) state.killFeed=on end,true))
+addR(tVisuals,TG("Session Info","",state.sessionInfo,function(on) state.sessionInfo=on end,true))
+
+-- ─── WORLD ───
+addL(tWorld,SL("World ESP",false))
+addL(tWorld,TG("Enable World ESP","",state.worldEsp,function(on) state.worldEsp=on end,false))
+addL(tWorld,TG("Show Chests","",state.worldEspChests,function(on) state.worldEspChests=on end,false))
+addL(tWorld,TG("Show Items","",state.worldEspItems,function(on) state.worldEspItems=on end,false))
+addL(tWorld,TG("Show Doors","",state.worldEspDoors,function(on) state.worldEspDoors=on end,false))
+addL(tWorld,TG("Show Objectives","",state.worldEspObjectives,function(on) state.worldEspObjectives=on end,false))
+addL(tWorld,TL("World ESP highlights objects in game",false))
+addR(tWorld,SL("Sound ESP",true))
+addR(tWorld,TG("Enable Sound ESP","",state.soundEsp,function(on) state.soundEsp=on end,true))
+addR(tWorld,SLD("Sound Range",10,500,state.soundEspRange,"st",function(v) state.soundEspRange=v end,true))
+addR(tWorld,TL("Visual indicator for footsteps/gunfire",true))
+addR(tWorld,TL("and other game sounds",true))
 
 -- ─── MOVEMENT ───
 addL(tMove,SL("Locomotion",false))
@@ -1332,33 +1413,36 @@ addL(tMove,SLD("Sprint Speed",16,100,state.sprintSpeed,"",function(v) state.spri
 addL(tMove,TG("Speed Boost","",state.speedBoost,function(on) state.speedBoost=on end,false))
 addL(tMove,SLD("Walk Speed",8,200,state.walkSpeed,"",function(v) state.walkSpeed=v end,false))
 addL(tMove,SLD("Jump Power",0,300,state.jumpPower,"",function(v) state.jumpPower=v end,false))
-addL(tMove,SL("Player",false))
-addL(tMove,TG("God Mode","",state.godMode,function(on) state.godMode=on end,false))
-addL(tMove,TG("Anti-AFK","",state.antiAfk,function(on) state.antiAfk=on end,false))
-addL(tMove,TG("Invisible","",state.invisible,function(on)
+addR(tMove,SL("Player",true))
+addR(tMove,TG("God Mode","",state.godMode,function(on) state.godMode=on end,true))
+addR(tMove,TG("Anti-AFK","",state.antiAfk,function(on) state.antiAfk=on end,true))
+addR(tMove,TG("Invisible","",state.invisible,function(on)
     state.invisible=on; local c=Player.Character; if not c then return end
-    for _,p in c:GetDescendants() do if p:IsA("BasePart") then p.Transparency=on and 1 or 0 end end end,false))
-addL(tMove,TG("Third Person","",state.thirdPerson,function(on) state.thirdPerson=on; setThirdPerson(on) end,false))
-addL(tMove,SLD("3P Distance",3,30,state.tpDistance,"st",function(v)
-    state.tpDistance=v; if state.thirdPerson then Player.CameraMaxZoomDistance=v; Player.CameraMinZoomDistance=v end end,false))
+    for _,p in c:GetDescendants() do if p:IsA("BasePart") then p.Transparency=on and 1 or 0 end end end,true))
+addR(tMove,TG("Third Person","",state.thirdPerson,function(on) state.thirdPerson=on; setThirdPerson(on) end,true))
+addR(tMove,SLD("3P Distance",3,30,state.tpDistance,"st",function(v)
+    state.tpDistance=v; if state.thirdPerson then Player.CameraMaxZoomDistance=v; Player.CameraMinZoomDistance=v end end,true))
 
--- ─── ADDONS ───
-addL(tAddons,SL("Crosshair",false))
-addL(tAddons,TG("Custom Crosshair","",state.crosshair,function(on) state.crosshair=on; rebuildCrosshair() end,false))
-addL(tAddons,DD("Style",{"Plus","Dot","X"},state.crosshairStyle,function(v) state.crosshairStyle=v; rebuildCrosshair() end,false))
-addL(tAddons,SLD("Size",4,30,state.crosshairSize,"px",function(v) state.crosshairSize=v; rebuildCrosshair() end,false))
-addL(tAddons,SL("Combat",false))
-addL(tAddons,TG("Hitbox Expander","",state.hitboxExpander,function(on) state.hitboxExpander=on; applyHitboxes(on) end,false))
-addL(tAddons,SLD("Hitbox Size",2,20,state.hitboxSize,"st",function(v) state.hitboxSize=v; if state.hitboxExpander then applyHitboxes(true) end end,false))
-addL(tAddons,SL("Utility",false))
-addL(tAddons,TG("Fake Lag","",state.fakelag,function(on) state.fakelag=on; setFakeLag(on) end,false))
-addL(tAddons,SLD("Lag Frames",1,10,state.fakelagAmount,"f",function(v) state.fakelagAmount=v end,false))
-addL(tAddons,TG("Auto Rejoin on Death","",state.autoRejoin,function(on) state.autoRejoin=on end,false))
-addL(tAddons,SL("Keybinds",false))
-addL(tAddons,TL("RShift  →  Toggle GUI",false))
-addL(tAddons,TL("RMB     →  Aim (hold/toggle/one)",false))
-addL(tAddons,TL("M       →  Full Map",false))
-addL(tAddons,TL("B       →  Bunny Hop",false))
+-- ─── EXTRAS ───
+addL(tExtras,SL("Crosshair",false))
+addL(tExtras,TG("Custom Crosshair","",state.crosshair,function(on) state.crosshair=on; rebuildCrosshair() end,false))
+addL(tExtras,DD("Style",{"Plus","Dot","X"},state.crosshairStyle,function(v) state.crosshairStyle=v; rebuildCrosshair() end,false))
+addL(tExtras,SLD("Size",4,30,state.crosshairSize,"px",function(v) state.crosshairSize=v; rebuildCrosshair() end,false))
+addL(tExtras,SL("Auto Features",false))
+addL(tExtras,TG("Auto Rejoin","",state.autoRejoin,function(on) state.autoRejoin=on end,false))
+addL(tExtras,TG("Auto Equip Weapon","",state.autoEquip,function(on) state.autoEquip=on end,false))
+addR(tExtras,SL("Match Automation",true))
+addR(tExtras,TG("Auto Accept Match","",state.matchAutoAccept,function(on) state.matchAutoAccept=on end,true))
+addR(tExtras,TG("Auto Queue","",state.matchAutoQueue,function(on) state.matchAutoQueue=on end,true))
+addR(tExtras,SL("Streamer Mode",true))
+addR(tExtras,TG("Enable Streamer Mode","",state.streamerMode,function(on) state.streamerMode=on end,true))
+addR(tExtras,TL("Hides script presence",true))
+addL(tExtras,SL("Keybinds",false))
+addL(tExtras,TL("RShift  →  Toggle GUI",false))
+addL(tExtras,TL("RMB     →  Aim (hold/toggle/one)",false))
+addL(tExtras,TL("M       →  Full Map",false))
+addL(tExtras,TL("B       →  Bunny Hop",false))
+addL(tExtras,TL("Click   →  Teleport (if enabled)",false))
 
 -- ─── CONFIG ───
 addL(tConfig,SL("Save & Load",false))
@@ -1391,16 +1475,16 @@ table.insert(tConfig.leftItems,loadRow)
 addL(tConfig,TL("File: blueblur_config.json",false))
 addL(tConfig,TL("Auto-saves on GUI close",false))
 
-addL(tConfig,SL("Executor Status",false))
-addL(tConfig,BADGE("Drawing API",hasDrawing,false))
-addL(tConfig,BADGE("mousemoverel",hasMoveRel,false))
-addL(tConfig,BADGE("hookmetamethod",hasHookMeta,false))
-addL(tConfig,BADGE("mouse1click",hasMouse1Click,false))
-addL(tConfig,SL("Mode Notes",false))
-addL(tConfig,TL("Camera  →  moves camera to lock",false))
-addL(tConfig,TL("Mouse   →  requires mousemoverel",false))
-addL(tConfig,TL("Silent  →  requires hookmetamethod",false))
-addL(tConfig,TL("blueblur  v3.0  —  Blue Edition",false))
+addR(tConfig,SL("Executor Status",true))
+addR(tConfig,BADGE("Drawing API",hasDrawing,true))
+addR(tConfig,BADGE("mousemoverel",hasMoveRel,true))
+addR(tConfig,BADGE("hookmetamethod",hasHookMeta,true))
+addR(tConfig,BADGE("mouse1click",hasMouse1Click,true))
+addR(tConfig,SL("Mode Notes",true))
+addR(tConfig,TL("Camera  →  moves camera to lock",true))
+addR(tConfig,TL("Mouse   →  requires mousemoverel",true))
+addR(tConfig,TL("Silent  →  requires hookmetamethod",true))
+addR(tConfig,TL("blueblur  v4.0  —  Ultimate",true))
 
 -- ══════════════════════════════════════════
 --  GLOBAL INPUT
@@ -1470,11 +1554,285 @@ RunService.Heartbeat:Connect(function()
     elseif state.autoSprint then hum.WalkSpeed=state.sprintSpeed
     else hum.WalkSpeed=state.walkSpeed end
     hum.JumpPower=state.jumpPower
+    -- Anti-Void
+    if state.antiVoid then
+        local hrp=getHRP()
+        if hrp and hrp.Position.Y < state.voidHeight then
+            hrp.CFrame=CFrame.new(hrp.Position.X,state.voidHeight+10,hrp.Position.Z)
+        end
+    end
+    -- Anti-Stomp (prevent death on fall)
+    if state.antiStomp then
+        local hrp=getHRP()
+        if hrp then
+            local vel=hrp.AssemblyLinearVelocity
+            if vel.Y < -50 then
+                vel=Vector3.new(vel.X,0,vel.Z)
+                hrp.AssemblyLinearVelocity=vel
+            end
+        end
+    end
 end)
 
 Player.Idled:Connect(function()
     if not state.antiAfk then return end
     VirtualUser:Button2Down(Vector2.zero,Camera.CFrame); task.wait(0.1); VirtualUser:Button2Up(Vector2.zero,Camera.CFrame)
+end)
+
+-- ══════════════════════════════════════════
+--  CLICK TELEPORT
+-- ══════════════════════════════════════════
+Mouse.Button1Down:Connect(function()
+    if state.clickTp then
+        local hrp=getHRP()
+        if hrp then
+            local target=Mouse.Target
+            if target then
+                local pos=target.Position
+                hrp.CFrame=CFrame.new(pos.X,pos.Y+3,pos.Z)
+            end
+        end
+    end
+end)
+
+-- ══════════════════════════════════════════
+--  COPY COORDINATES
+-- ══════════════════════════════════════════
+RunService.RenderStepped:Connect(function()
+    if state.copyCoords then
+        local hrp=getHRP()
+        if hrp and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) and UserInputService:IsKeyDown(Enum.KeyCode.C) then
+            local pos=hrp.Position
+            local coords=string.format("X:%.2f, Y:%.2f, Z:%.2f",pos.X,pos.Y,pos.Z)
+            pcall(function() setclipboard(coords) end)
+            state.copyCoords=false
+        end
+    end
+end)
+
+-- ══════════════════════════════════════════
+--  SERVER HOP
+-- ══════════════════════════════════════════
+local function serverHop()
+    if not state.serverHop then return end
+    pcall(function()
+        local servers={}
+        local cursor=nil
+        repeat
+            local url="https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?sortFilter=2&limit=100"
+            if cursor then url=url.."&cursor="..cursor end
+            local res=game:HttpGet(url,true)
+            local data=HttpService:JSONDecode(res)
+            for _,s in data.data do
+                if s.playing < s.maxPlayers and s.id ~= game.JobId then
+                    table.insert(servers,s.id)
+                end
+            end
+            cursor=data.nextPageCursor
+        until not cursor or #servers > 0
+        if #servers > 0 then
+            TeleportService:TeleportToPlaceInstance(game.PlaceId,servers[math.random(1,#servers)],Player)
+        end
+    end)
+end
+
+-- ══════════════════════════════════════════
+--  ANTI-RAGDOLL
+-- ══════════════════════════════════════════
+Player.CharacterAdded:Connect(function(char)
+    if state.antiRagdoll then
+        local hum=char:WaitForChild("Humanoid")
+        hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp,false)
+        hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll,false)
+    end
+end)
+
+-- ══════════════════════════════════════════
+--  SPEED OVERLAY (Drawing)
+-- ══════════════════════════════════════════
+local speedTextDrawing=nil
+RunService.RenderStepped:Connect(function()
+    if state.speedOverlay and hasDrawing then
+        if not speedTextDrawing then
+            speedTextDrawing=Drawing.new("Text")
+            speedTextDrawing.Size=16
+            speedTextDrawing.Font=Drawing.Fonts.UI
+            speedTextDrawing.Color=C.BLUE
+            speedTextDrawing.Outline=true
+            speedTextDrawing.OutlineColor=Color3.new(0,0,0)
+            speedTextDrawing.Text="Speed: 0"
+            speedTextDrawing.Position=Vector2.new(10,60)
+            speedTextDrawing.Visible=true
+        end
+        local hum=getHum()
+        if hum then
+            speedTextDrawing.Text="Speed: "..math.floor(hum.WalkSpeed)
+        end
+    elseif speedTextDrawing then
+        speedTextDrawing:Remove()
+        speedTextDrawing=nil
+    end
+end)
+
+-- ══════════════════════════════════════════
+--  WORLD ESP OBJECTS SCANNER
+-- ══════════════════════════════════════════
+local function scanWorldObjects()
+    state.worldEspObjects={}
+    local chestNames={"Chest","Treasure","Loot","Supply","Crate"}
+    local itemNames={"Tool","Weapon","Pickup","Drop","Coin","Gem"}
+    local doorNames={"Door","Gate","Exit","Enter"}
+    local objNames={"Objective","Flag","Capture","Point","Base"}
+
+    for _,obj in workspace:GetDescendants() do
+        if obj:IsA("BasePart") then
+            local name=obj.Name:lower()
+            local objType=nil
+            for _,c in chestNames do if name:find(c:lower()) then objType="chest" break end end
+            if not objType then for _,i in itemNames do if name:find(i:lower()) then objType="item" break end end end
+            if not objType then for _,d in doorNames do if name:find(d:lower()) then objType="door" break end end end
+            if not objType then for _,o in objNames do if name:find(o:lower()) then objType="objective" break end end end
+            if objType then
+                table.insert(state.worldEspObjects,{obj=obj,type=objType})
+            end
+        end
+    end
+end
+task.spawn(scanWorldObjects)
+
+-- ══════════════════════════════════════════
+--  PLAYER LIST UI
+-- ══════════════════════════════════════════
+local playerListGui=nil
+local function createPlayerList()
+    if playerListGui then playerListGui:Destroy() end
+    playerListGui=Instance.new("ScreenGui"); playerListGui.Name="BlueBlurPlayerList"
+    playerListGui.ResetOnSpawn=false; playerListGui.Parent=PlayerGui
+
+    local frame=Instance.new("Frame"); frame.Size=UDim2.new(0,200,0,300)
+    frame.Position=UDim2.new(0,10,0.5,-150); frame.BackgroundColor3=C.BG2
+    frame.BackgroundTransparency=0.2; frame.BorderSizePixel=0; frame.Parent=playerListGui
+    Instance.new("UICorner",frame).CornerRadius=UDim.new(0,8)
+    Instance.new("UIStroke",frame).Color=C.BLUE_DIM
+
+    local title=Instance.new("TextLabel"); title.Size=UDim2.new(1,0,0,25)
+    title.BackgroundTransparency=1; title.Text="Player List"
+    title.TextColor3=C.BLUE; title.TextSize=12; title.Font=Enum.Font.GothamBold; title.Parent=frame
+
+    local list=Instance.new("ScrollingFrame"); list.Size=UDim2.new(1,-10,1,-30)
+    list.Position=UDim2.new(0,5,0,28); list.BackgroundTransparency=1
+    list.ScrollBarThickness=3; list.ScrollBarImageColor3=C.BLUE
+    list.AutomaticCanvasSize=Enum.AutomaticSize.Y; list.Parent=frame
+    local ly=Instance.new("UIListLayout"); ly.SortOrder=Enum.SortOrder.LayoutOrder; ly.Padding=UDim.new(0,2); ly.Parent=list
+
+    local idx=0
+    for _,plr in Players:GetPlayers() do
+        if plr==Player then continue end
+        idx=idx+1
+        local row=Instance.new("Frame"); row.Size=UDim2.new(1,0,0,20)
+        row.BackgroundColor3=C.BG3; row.BackgroundTransparency=0.5; row.LayoutOrder=idx; row.Parent=list
+        Instance.new("UICorner",row).CornerRadius=UDim.new(0,4)
+
+        local nm=Instance.new("TextLabel"); nm.Size=UDim2.new(0.6,-5,1,0)
+        nm.Position=UDim2.new(0,5,0,0); nm.BackgroundTransparency=1
+        nm.Text=plr.DisplayName; nm.TextColor3=C.TEXT; nm.TextSize=10
+        nm.Font=Enum.Font.Gotham; nm.TextXAlignment=Enum.TextXAlignment.Left; nm.Parent=row
+
+        local hp=Instance.new("TextLabel"); hp.Size=UDim2.new(0.4,-5,1,0)
+        hp.Position=UDim2.new(0.6,0,0,0); hp.BackgroundTransparency=1
+        hp.Text="--"; hp.TextColor3=C.SUBTEXT; hp.TextSize=9
+        hp.Font=Enum.Font.Gotham; hp.TextXAlignment=Enum.TextXAlignment.Right; hp.Parent=row
+
+        plr.CharacterAdded:Connect(function(char)
+            local hum=char:WaitForChild("Humanoid")
+            hum.HealthChanged:Connect(function(h)
+                hp.Text=math.floor(h).."/"..math.floor(hum.MaxHealth)
+                hp.TextColor3=h > hum.MaxHealth*0.5 and C.GREEN or C.RED
+            end)
+        end)
+    end
+end
+
+RunService.RenderStepped:Connect(function()
+    if state.playerList and not playerListGui then
+        createPlayerList()
+    elseif not state.playerList and playerListGui then
+        playerListGui:Destroy()
+        playerListGui=nil
+    end
+end)
+
+-- ══════════════════════════════════════════
+--  SESSION INFO UI
+-- ══════════════════════════════════════════
+local sessionInfoDrawing=nil
+RunService.RenderStepped:Connect(function()
+    if state.sessionInfo and hasDrawing then
+        if not sessionInfoDrawing then
+            sessionInfoDrawing=Drawing.new("Text")
+            sessionInfoDrawing.Size=14
+            sessionInfoDrawing.Font=Drawing.Fonts.UI
+            sessionInfoDrawing.Color=C.TEXT
+            sessionInfoDrawing.Outline=true
+            sessionInfoDrawing.OutlineColor=Color3.new(0,0,0)
+            sessionInfoDrawing.Text=""
+            sessionInfoDrawing.Position=Vector2.new(10,80)
+            sessionInfoDrawing.Visible=true
+        end
+        local ping=math.floor(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue())
+        local fps=math.floor(1/game:GetService("RunService").RenderStepped:Wait())
+        sessionInfoDrawing.Text="Ping: "..ping.."ms | FPS: "..fps
+    elseif sessionInfoDrawing then
+        sessionInfoDrawing:Remove()
+        sessionInfoDrawing=nil
+    end
+end)
+
+-- ══════════════════════════════════════════
+--  KILL FEED UI
+-- ══════════════════════════════════════════
+local killFeedGui=nil
+local killFeedEntries={}
+local function addKillFeedEntry(killer,victim)
+    if not killFeedGui then return end
+    local entry={text=killer.." eliminated "..victim,age=0}
+    table.insert(killFeedEntries,1,entry)
+    if #killFeedEntries > 5 then table.remove(killFeedEntries) end
+    -- Rebuild kill feed
+    for _,c in killFeedGui:GetChildren() do if c:IsA("Frame") then c:Destroy() end end
+    for i,e in ipairs(killFeedEntries) do
+        local row=Instance.new("Frame"); row.Size=UDim2.new(1,-10,0,18)
+        row.Position=UDim2.new(0,5,0,(i-1)*20+5); row.BackgroundColor3=C.BG3
+        row.BackgroundTransparency=0.7; row.BorderSizePixel=0; row.Parent=killFeedGui
+        Instance.new("UICorner",row).CornerRadius=UDim.new(0,4)
+        local txt=Instance.new("TextLabel"); txt.Size=UDim2.new(1,0,1,0)
+        txt.BackgroundTransparency=1; txt.Text=e.text; txt.TextColor3=C.TEXT
+        txt.TextSize=10; txt.Font=Enum.Font.Gotham; txt.Parent=row
+    end
+end
+
+Players.PlayerAdded:Connect(function(plr)
+    plr.CharacterAdded:Connect(function(char)
+        local hum=char:WaitForChild("Humanoid")
+        hum.Died:Connect(function()
+            local killer=plr:FindFirstChild("Creator") and Players:GetPlayerFromCharacter(plr.Creator)
+            if killer then
+                addKillFeedEntry(killer.DisplayName,plr.DisplayName)
+            end
+        end)
+    end)
+end)
+
+RunService.RenderStepped:Connect(function()
+    if state.killFeed and not killFeedGui then
+        killFeedGui=Instance.new("ScreenGui"); killFeedGui.Name="BlueBlurKillFeed"
+        killFeedGui.ResetOnSpawn=false; killFeedGui.Parent=PlayerGui
+        local frame=Instance.new("Frame"); frame.Size=UDim2.new(0,220,0,120)
+        frame.Position=UDim2.new(1,-230,0,10); frame.BackgroundTransparency=1; frame.Parent=killFeedGui
+    elseif not state.killFeed and killFeedGui then
+        killFeedGui:Destroy()
+        killFeedGui=nil
+    end
 end)
 
 -- ══════════════════════════════════════════
@@ -1599,9 +1957,11 @@ Win.Position=UDim2.new(0.5,-WIN_W*0.35,0.5,-WIN_H*0.35)
 TweenService:Create(Win,TweenInfo.new(0.45,Enum.EasingStyle.Back,Enum.EasingDirection.Out),
     {Size=UDim2.new(0,WIN_W,0,WIN_H),Position=UDim2.new(0.5,-WIN_W/2,0.5,-WIN_H/2)}):Play()
 
-print("╔══════════════════════════════╗")
-print("║   blueblur  v3.0  loaded ✓  ║")
-print("╠══════════════════════════════╣")
-print("║  RShift=GUI | RMB=Aim | M=Map ║")
-print("╚══════════════════════════════╝")
+print("╔═══════════════════════════════════════╗")
+print("║   blueblur  v4.0  ULTIMATE  loaded ✓  ║")
+print("╠═══════════════════════════════════════╣")
+print("║  RShift=GUI | RMB=Aim | M=Map        ║")
+print("║  B=BunnyHop | Click=Teleport         ║")
+print("╚═══════════════════════════════════════╝")
+print("Features: Combat | Teleport | World ESP | All Extras")
 print("Drawing:"..tostring(hasDrawing).." | MoveRel:"..tostring(hasMoveRel).." | HookMeta:"..tostring(hasHookMeta))
