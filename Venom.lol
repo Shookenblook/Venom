@@ -1,8 +1,4 @@
--- ══════════════════════════════════════════════════════════════════
---  blueblur  v4.0  |  ULTIMATE EDITION
---  Full aimbot · Combat · Teleport · World ESP · All Features
---  RShift=GUI | RMB=Aim | M=Full Map | B=BunnyHop | Click=TP
--- ══════════════════════════════════════════════════════════════════
+
 
 local Players          = game:GetService("Players")
 local TweenService     = game:GetService("TweenService")
@@ -45,7 +41,7 @@ local function CheckWhitelist()
 end
 
 -- ══════════════════════════════════════════
---  SPLASH SCREEN  (animated)
+--  SPLASH SCREEN  (animations type shi)
 -- ══════════════════════════════════════════
 local SplashGui=Instance.new("ScreenGui")
 SplashGui.Name="VenomSplash"; SplashGui.ResetOnSpawn=false
@@ -119,14 +115,14 @@ end)
 local granted=CheckWhitelist()
 
 if not granted then
-    SplashSub.Text="❌  Not whitelisted."; SplashSub.TextColor3=Color3.fromRGB(220,80,80)
+    SplashSub.Text="Fuck nigga you not whitelisted."; SplashSub.TextColor3=Color3.fromRGB(220,80,80)
     cardStroke.Color=Color3.fromRGB(220,50,50)
     TweenService:Create(SplashBar,TweenInfo.new(0.3),{Size=UDim2.new(1,0,1,0),BackgroundColor3=Color3.fromRGB(200,50,50)}):Play()
     task.wait(3); TweenService:Create(SplashBG,TweenInfo.new(0.4),{BackgroundTransparency=1}):Play()
     task.wait(0.4); SplashGui:Destroy(); return
 end
 
-SplashSub.Text="✅  Access granted!"; SplashSub.TextColor3=Color3.fromRGB(80,220,120)
+SplashSub.Text=" Access granted!"; SplashSub.TextColor3=Color3.fromRGB(80,220,120)
 TweenService:Create(SplashBar,TweenInfo.new(0.3),{Size=UDim2.new(1,0,1,0),BackgroundColor3=Color3.fromRGB(60,220,90)}):Play()
 task.wait(1)
 TweenService:Create(SplashBG,TweenInfo.new(0.4),{BackgroundTransparency=1}):Play()
