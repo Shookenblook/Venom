@@ -191,7 +191,6 @@ local aimToggleState=false; local onePressConsumed=false
 local state = {
     esp=false, espBoxes=true, espNames=true, espHealth=true,
     espTracers=false, espDistance=true, espChams=false,
-    espChamRainbow=false, espChamFresnel=false, espXRay=false,
     fullbright=false, noFog=false, noShadows=false,
     flyEnabled=false, noclip=false, infiniteJump=false,
     speedBoost=false, walkSpeed=16, jumpPower=50,
@@ -208,8 +207,6 @@ local state = {
     silentTeleport=false, silentTpDistance=50,
     antiLock=false, antiAimAngle=180,
     reachEnabled=false, reachAmount=20,
-    autoParry=false, autoDodge=false,
-    weaponAura=false, weaponAuraRange=25,
     -- UTILITY FEATURES
     clickTp=false, teleportToPlayer="None",
     serverHop=false, copyCoords=false,
@@ -218,15 +215,19 @@ local state = {
     -- VISUAL FEATURES
     worldEsp=false, worldEspChests=false, worldEspItems=false,
     worldEspDoors=false, worldEspObjectives=false,
-    soundEsp=false, soundEspRange=100,
     speedOverlay=false,
     playerList=false, killFeed=false,
     sessionInfo=false,
     -- QOL FEATURES
     streamerMode=false,
-    hotkeyCombo=false, hotkeyKey="G",
     matchAutoAccept=false, matchAutoQueue=false,
     autoEquip=false,
+    -- SOUND VISUALIZER (Fortnite-style)
+    soundViz=false, soundVizRange=100,
+    soundVizFootsteps=true, soundVizGunfire=true,
+    soundVizVehicles=true, soundVizExplosions=true,
+    soundVizDoors=true, soundVizVoice=true,
+    soundVizEnemiesOnly=false,
     -- WORLD ESP OBJECTS CACHE
     worldEspObjects={},
 }
@@ -1390,11 +1391,18 @@ addL(tWorld,TG("Show Items","",state.worldEspItems,function(on) state.worldEspIt
 addL(tWorld,TG("Show Doors","",state.worldEspDoors,function(on) state.worldEspDoors=on end,false))
 addL(tWorld,TG("Show Objectives","",state.worldEspObjectives,function(on) state.worldEspObjectives=on end,false))
 addL(tWorld,TL("World ESP highlights objects in game",false))
-addR(tWorld,SL("Sound ESP",true))
-addR(tWorld,TG("Enable Sound ESP","",state.soundEsp,function(on) state.soundEsp=on end,true))
-addR(tWorld,SLD("Sound Range",10,500,state.soundEspRange,"st",function(v) state.soundEspRange=v end,true))
-addR(tWorld,TL("Visual indicator for footsteps/gunfire",true))
-addR(tWorld,TL("and other game sounds",true))
+addR(tWorld,SL("Sound Visualizer",true))
+addR(tWorld,TG("Enable Sound Viz","",state.soundViz,function(on) state.soundViz=on end,true))
+addR(tWorld,SLD("Sound Range",20,500,state.soundVizRange,"st",function(v) state.soundVizRange=v end,true))
+addR(tWorld,SL("Sound Types",true))
+addR(tWorld,TG("Footsteps","",state.soundVizFootsteps,function(on) state.soundVizFootsteps=on end,true))
+addR(tWorld,TG("Gunfire","",state.soundVizGunfire,function(on) state.soundVizGunfire=on end,true))
+addR(tWorld,TG("Vehicles","",state.soundVizVehicles,function(on) state.soundVizVehicles=on end,true))
+addR(tWorld,TG("Explosions","",state.soundVizExplosions,function(on) state.soundVizExplosions=on end,true))
+addR(tWorld,TG("Doors","",state.soundVizDoors,function(on) state.soundVizDoors=on end,true))
+addR(tWorld,TG("Voice Chat","",state.soundVizVoice,function(on) state.soundVizVoice=on end,true))
+addR(tWorld,SL("Filters",true))
+addR(tWorld,TG("Enemies Only","",state.soundVizEnemiesOnly,function(on) state.soundVizEnemiesOnly=on end,true))
 
 -- ─── MOVEMENT ───
 addL(tMove,SL("Locomotion",false))
@@ -1418,7 +1426,13 @@ addR(tMove,TG("God Mode","",state.godMode,function(on) state.godMode=on end,true
 addR(tMove,TG("Anti-AFK","",state.antiAfk,function(on) state.antiAfk=on end,true))
 addR(tMove,TG("Invisible","",state.invisible,function(on)
     state.invisible=on; local c=Player.Character; if not c then return end
-    for _,p in c:GetDescendants() do if p:IsA("BasePart") then p.Transparency=on and 1 or 0 end end end,true))
+    for _,p in c:GetDescendants() do
+        if p:IsA("BasePart") then
+            p.LocalTransparencyModifier=on and 1 or 0
+        elseif p:IsA("Decal") or p:IsA("Texture") then
+            p.Transparency=on and 1 or 0
+        end
+    end end,true))
 addR(tMove,TG("Third Person","",state.thirdPerson,function(on) state.thirdPerson=on; setThirdPerson(on) end,true))
 addR(tMove,SLD("3P Distance",3,30,state.tpDistance,"st",function(v)
     state.tpDistance=v; if state.thirdPerson then Player.CameraMaxZoomDistance=v; Player.CameraMinZoomDistance=v end end,true))
@@ -1944,6 +1958,258 @@ end)
 game:BindToClose(function()
     saveConfig(); cleanupAllESP()
     for _,d in crosshairDrawings do pcall(function() d:Remove() end) end
+    -- Cleanup sound viz drawings
+    for _,d in soundVizDrawings do pcall(function() d:Remove() end) end
+end)
+
+-- ══════════════════════════════════════════
+--  FORTNITE-STYLE SOUND VISUALIZER
+-- ══════════════════════════════════════════
+local soundVizDrawings={}
+local soundVizActive={}
+local soundVizColors={
+    footsteps=Color3.fromRGB(255,50,50),    -- Red for footsteps
+    gunfire=Color3.fromRGB(255,200,50),     -- Orange for gunfire
+    vehicles=Color3.fromRGB(100,200,255),   -- Blue for vehicles
+    explosions=Color3.fromRGB(255,100,50), -- Red-orange for explosions
+    doors=Color3.fromRGB(200,200,100),      -- Yellow for doors
+    voice=Color3.fromRGB(100,255,100),      -- Green for voice chat
+}
+
+-- Sound name patterns (lowercase for matching)
+local soundPatterns={
+    {pattern="walk|step|foot|run|jump|land",type="footsteps"},
+    {pattern="shoot|gun|fire|pistol|rifle|shot|gunfire|weapon",type="gunfire"},
+    {pattern="car|vehicle|motor|engine|drive|truck|helicop",type="vehicles"},
+    {pattern="explosion|bomb|grenade|rocket|frag|explode",type="explosions"},
+    {pattern="door|open|close|creak|gate",type="doors"},
+    {pattern="voice|speak|talk|mic|chat|audio",type="voice"},
+}
+
+-- Create sound viz UI (circular radar around screen)
+local soundVizGui=Instance.new("ScreenGui"); soundVizGui.Name="BlueBlurSoundViz"
+soundVizGui.ResetOnSpawn=false; soundVizGui.Parent=PlayerGui
+soundVizGui.Enabled=false
+
+-- Create the circular radar frame
+local soundVizFrame=Instance.new("Frame"); soundVizFrame.Name="SoundRadar"
+soundVizFrame.Size=UDim2.new(0,300,0,300); soundVizFrame.AnchorPoint=Vector2.new(0.5,0.5)
+soundVizFrame.Position=UDim2.new(0.5,0,0.5,0); soundVizFrame.BackgroundTransparency=1
+soundVizFrame.Parent=soundVizGui
+
+-- Create direction indicators (12 directions)
+for i=1,12 do
+    local angle=(i-1)*30
+    local rad=math.rad(angle)
+    local x=math.cos(rad)*130
+    local y=math.sin(rad)*130
+    local dot=Instance.new("Frame"); dot.Name="Dir"..i
+    dot.Size=UDim2.new(0,12,0,12); dot.Position=UDim2.new(0.5,0,0.5,0)
+    dot.BackgroundColor3=Color3.fromRGB(50,50,80); dot.BackgroundTransparency=0.7
+    dot.AnchorPoint=Vector2.new(0.5,0.5); dot.Position=UDim2.new(0.5,x-6,0.5,-y-6)
+    dot.BorderSizePixel=0; dot.Parent=soundVizFrame
+    Instance.new("UICorner",dot).CornerRadius=UDim.new(1,0)
+end
+
+-- Center dot
+local centerDot=Instance.new("Frame"); centerDot.Name="Center"
+centerDot.Size=UDim2.new(0,20,0,20); centerDot.Position=UDim2.new(0.5,0,0.5,0)
+centerDot.BackgroundColor3=C.BLUE; centerDot.BackgroundTransparency=0.5
+centerDot.AnchorPoint=Vector2.new(0.5,0.5); centerDot.BorderSizePixel=0
+centerDot.Parent=soundVizFrame
+Instance.new("UICorner",centerDot).CornerRadius=UDim.new(1,0)
+
+-- Helper: Check if player is enemy
+local function isEnemy(plr)
+    if plr==Player then return false end
+    local ok1,mt=pcall(function() return Player.Team end)
+    local ok2,pt=pcall(function() return plr.Team end)
+    if ok1 and ok2 and mt and pt then
+        return mt~=pt
+    end
+    return true -- Assume enemy if no team info
+end
+
+-- Helper: Get sound type from sound object
+local function getSoundType(snd)
+    if not snd then return nil end
+    local name=(snd.SoundId or "")..(snd.Name or "")
+    local lower=name:lower()
+    for _,s in ipairs(soundPatterns) do
+        if lower:find(s.pattern) then return s.type end
+    end
+    return nil
+end
+
+-- Helper: Create indicator for sound
+local function createSoundIndicator(soundType,soundPos,isEnemyFlag)
+    if not hasDrawing then return end
+    if not state.soundViz then return end
+
+    local selfHRP=getHRP()
+    if not selfHRP then return end
+
+    local offset=soundPos-selfHRP.Position
+    local dist=offset.Magnitude
+    if dist > state.soundVizRange then return end
+
+    -- Check if enemy-only filter is enabled
+    if state.soundVizEnemiesOnly and isEnemyFlag==false then return end
+
+    -- Map to screen position
+    local screenPos=Camera:WorldToScreenPoint(soundPos)
+    if screenPos.Z < 0 then return end -- Behind camera
+
+    -- Calculate angle from screen center to sound
+    local centerX=Camera.ViewportSize.X/2
+    local centerY=Camera.ViewportSize.Y/2
+    local relX=screenPos.X-centerX
+    local relY=-(screenPos.Y-centerY) -- Flip Y axis
+    local angle=math.atan2(relY,relX)
+
+    -- Create triangle indicator
+    local ind=Drawing.new("Triangle")
+    ind.Color=soundVizColors[soundType] or C.RED
+    ind.Filled=true
+    ind.Thickness=2
+    ind.Transparency=0.2
+    ind.Visible=true
+
+    -- Position at screen edge, pointing to sound
+    local radius=math.min(centerX,centerY)*0.9
+    local indX=centerX+math.cos(angle)*radius
+    local indY=centerY+math.sin(angle)*radius
+    local size=15
+    ind.PointA=Vector2.new(indX+math.cos(angle)*size,indY+math.sin(angle)*size)
+    ind.PointB=Vector2.new(indX+math.cos(angle+2.6)*size*0.7,indY+math.sin(angle+2.6)*size*0.7)
+    ind.PointC=Vector2.new(indX+math.cos(angle-2.6)*size*0.7,indY+math.sin(angle-2.6)*size*0.7)
+
+    table.insert(soundVizDrawings,ind)
+    table.insert(soundVizActive,{
+        drawing=ind,
+        created=tick(),
+        duration=2.0, -- Longer duration
+    })
+end
+
+-- Track player movement for footstep detection
+local playerLastPos={}
+local playerMovingState={}
+
+Players.PlayerAdded:Connect(function(plr)
+    playerLastPos[plr]=nil
+    playerMovingState[plr]=false
+
+    plr.CharacterAdded:Connect(function(char)
+        local hum=char:WaitForChild("Humanoid")
+        local hrp=char:WaitForChild("HumanoidRootPart")
+        playerLastPos[plr]=hrp.Position
+
+        -- Detect running state changes
+        hum.Running:Connect(function(speed)
+            if speed > 1 and state.soundViz and state.soundVizFootsteps then
+                local currentPos=hrp.Position
+                local lastPos=playerLastPos[plr]
+                if lastPos then
+                    local dist=(currentPos-lastPos).Magnitude
+                    if dist > 0.5 then -- Real movement
+                        createSoundIndicator("footsteps",currentPos,isEnemy(plr))
+                    end
+                end
+                playerLastPos[plr]=currentPos
+            end
+        end)
+    end)
+end)
+
+Players.PlayerRemoving:Connect(function(plr)
+    playerLastPos[plr]=nil
+    playerMovingState[plr]=nil
+end)
+
+-- Sound monitoring (sounds playing in workspace)
+task.spawn(function()
+    while true do
+        task.wait(0.05) -- Check more frequently
+        if not state.soundViz then continue end
+
+        for _,desc in workspace:GetDescendants() do
+            if desc:IsA("Sound") and desc.IsPlaying and desc.Volume > 0 then
+                local soundType=getSoundType(desc)
+                if soundType then
+                    -- Check if this sound type is enabled
+                    local enabled=false
+                    if soundType=="footsteps" and state.soundVizFootsteps then enabled=true end
+                    if soundType=="gunfire" and state.soundVizGunfire then enabled=true end
+                    if soundType=="vehicles" and state.soundVizVehicles then enabled=true end
+                    if soundType=="explosions" and state.soundVizExplosions then enabled=true end
+                    if soundType=="doors" and state.soundVizDoors then enabled=true end
+                    if soundType=="voice" and state.soundVizVoice then enabled=true end
+
+                    if enabled then
+                        -- Get sound position
+                        local soundParent=desc.Parent
+                        local soundPos=nil
+
+                        if soundParent:IsA("BasePart") then
+                            soundPos=soundParent.Position
+                        elseif soundParent:IsA("Model") and soundParent.PrimaryPart then
+                            soundPos=soundParent.PrimaryPart.Position
+                        elseif soundParent:IsA("Tool") and soundParent.Parent then
+                            if soundParent.Parent:IsA("Model") then
+                                local hrp=soundParent.Parent:FindFirstChild("HumanoidRootPart")
+                                if hrp then soundPos=hrp.Position end
+                            end
+                        end
+
+                        if soundPos then
+                            -- Try to identify who made the sound
+                            local enemyFlag=true -- Default to showing
+                            if soundParent:IsA("Model") then
+                                local plr=Players:GetPlayerFromCharacter(soundParent)
+                                if plr then enemyFlag=isEnemy(plr) end
+                            end
+                            createSoundIndicator(soundType,soundPos,enemyFlag)
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- Sound visualizer update loop
+RunService.RenderStepped:Connect(function()
+    local guiEnabled=state.soundViz and hasDrawing
+    soundVizGui.Enabled=guiEnabled
+    if not guiEnabled then
+        for _,d in soundVizDrawings do pcall(function() d.Visible=false end) end
+        return
+    end
+    -- Clean up old indicators
+    local now=tick()
+    local newDrawings={}
+    local newActive={}
+    for i,d in ipairs(soundVizDrawings) do
+        local entry=soundVizActive[i]
+        if entry then
+            local age=now-entry.created
+            if age < entry.duration then
+                -- Fade out
+                local alpha=1-(age/entry.duration)
+                pcall(function()
+                    d.Transparency=alpha*0.5
+                    d.Visible=true
+                end)
+                table.insert(newDrawings,d)
+                table.insert(newActive,entry)
+            else
+                pcall(function() d:Remove() end)
+            end
+        end
+    end
+    soundVizDrawings=newDrawings
+    soundVizActive=newActive
 end)
 
 -- ══════════════════════════════════════════
@@ -1963,5 +2229,5 @@ print("╠═══════════════════════�
 print("║  RShift=GUI | RMB=Aim | M=Map        ║")
 print("║  B=BunnyHop | Click=Teleport         ║")
 print("╚═══════════════════════════════════════╝")
-print("Features: Combat | Teleport | World ESP | All Extras")
+print("Features: Aimbot | Combat | Sound Viz | All Extras")
 print("Drawing:"..tostring(hasDrawing).." | MoveRel:"..tostring(hasMoveRel).." | HookMeta:"..tostring(hasHookMeta))
